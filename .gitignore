@@ -13,3 +13,4 @@ finetune/out/*/
 finetune/data/ingested/
 finetune/data/exported/
 .DS_Store
+.pytest_cache/
