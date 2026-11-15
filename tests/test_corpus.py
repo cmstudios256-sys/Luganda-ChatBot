@@ -277,3 +277,58 @@ def test_bulk_knowledge_endpoint(client):
     assert body["chunks_added"] >= 3
     hit = client.get("/api/knowledge/search", params={"q": "amakuru ku luguudo"}).json()
     assert hit["documents"], "bulk-loaded documents must be retrievable"
+
+
+# --------------------------------------------------------------------------- #
+# Register caps: the Bible must not become the only voice the model has
+# --------------------------------------------------------------------------- #
+def _reg_records(biblical=20, other=5, words=100):
+    recs = [{"id": f"b{i:02d}", "words": words, "register": "biblical",
+             "source": "bible:Olw'okusooka", "locator": str(i), "text": "x"} for i in range(biblical)]
+    recs += [{"id": f"o{i:02d}", "words": words, "source": "files:ebbaluwa", "locator": str(i),
+              "text": "x"} for i in range(other)]
+    return recs
+
+
+def test_biblical_share_is_capped():
+    from corpus.build_corpus import cap_registers
+
+    kept, report = cap_registers(_reg_records(), {"biblical": 0.25})
+    bible_words = sum(r["words"] for r in kept if r.get("register") == "biblical")
+    total = sum(r["words"] for r in kept)
+    assert bible_words < 2000, "no capping happened"
+    assert bible_words / total <= 0.30, f"still {bible_words / total:.0%} biblical"
+    assert report["biblical"]["dropped_records"] > 0
+
+
+def test_capping_is_deterministic():
+    from corpus.build_corpus import cap_registers
+
+    a, _ = cap_registers(_reg_records(), {"biblical": 0.25})
+    b, _ = cap_registers(_reg_records(), {"biblical": 0.25})
+    assert [r["id"] for r in a] == [r["id"] for r in b], "same corpus must give the same mix"
+
+
+def test_small_register_is_left_alone():
+    from corpus.build_corpus import cap_registers
+
+    kept, report = cap_registers(_reg_records(biblical=1, other=20), {"biblical": 0.25})
+    assert len(kept) == 21
+    assert report["biblical"]["dropped_records"] == 0
+
+
+def test_cap_is_skipped_with_a_warning_when_it_is_the_whole_corpus():
+    from corpus.build_corpus import cap_registers
+
+    only_bible = [r for r in _reg_records() if r.get("register")]
+    kept, report = cap_registers(only_bible, {"biblical": 0.25})
+    assert len(kept) == len(only_bible), "deleting the entire corpus is not a fix"
+    assert "warning" in report["biblical"]
+
+
+def test_no_caps_means_no_changes():
+    from corpus.build_corpus import cap_registers
+
+    recs = _reg_records()
+    kept, report = cap_registers(recs, {})
+    assert kept == recs and report == {}

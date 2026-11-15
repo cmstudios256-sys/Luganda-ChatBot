@@ -75,6 +75,21 @@ def check_record(rec: dict) -> tuple[list[str], list[str]]:
     if "_error" in rec:
         return [rec["_error"]], []
 
+    # DPO schema (prompt/chosen/rejected) is a different file from SFT and validates on its
+    # own terms. Counting it as 5 "missing messages" errors made the whole suite look broken.
+    if "prompt" in rec and ("chosen" in rec or "rejected" in rec):
+        errors, warnings = [], []
+        if not str(rec.get("prompt", "")).strip():
+            errors.append("empty 'prompt'")
+        for key in ("chosen", "rejected"):
+            if not str(rec.get(key, "")).strip():
+                errors.append(f"empty '{key}'")
+            elif FORBIDDEN_CHARS & set(str(rec[key])):
+                errors.append(f"forbidden character in {key}")
+        if str(rec.get("chosen", "")).strip() == str(rec.get("rejected", "")).strip():
+            errors.append("chosen and rejected are identical — nothing to learn")
+        return errors, warnings
+
     # Eval-set schema (prompt/reference) is valid too — it never trains, it scores.
     if "prompt" in rec and "reference" in rec:
         if not str(rec["prompt"]).strip():

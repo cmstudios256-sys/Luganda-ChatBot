@@ -1,4 +1,4 @@
-.PHONY: run install validate build ingest train-plan train eval clean corpus-files corpus-web corpus-build corpus-load corpus-bible review review-apply review-status probe script check-takes
+.PHONY: run install validate build ingest train-plan train eval clean corpus-files corpus-web corpus-build corpus-load corpus-bible bible-all bible-pairs clean-data review review-apply review-status probe script check-takes
 
 run:            ## start the chatbot on :8000
 	python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -44,6 +44,19 @@ corpus-build:   ## merge + dedupe + report
 
 corpus-bible:  ## the Luganda Bible: ./bayibuli (verse-numbered .txt per book)
 	python3 -m corpus.ingest_bible bayibuli/ --license "check the edition"
+
+bible-all:      ## ingest bible -> build corpus (capped) -> pairs -> clean -> validate
+	python3 -m corpus.ingest_bible bayibuli/ --out bible --license "see ANTIGRAVITY-BRIEF.md"
+	python3 -m corpus.build_corpus --max-register-share biblical=0.25
+	python3 -m finetune.ingest_bible_pairs
+	python3 -m finetune.clean_dataset finetune/data
+	python3 finetune/validate_dataset.py finetune/data
+
+clean-data:     ## normalise characters and drop unusable records (backs up to *.bak)
+	python3 -m finetune.clean_dataset finetune/data
+
+bible-pairs:    ## verse-aligned EN<->LG pairs -> capped SFT records (dry run first)
+	python3 -m finetune.ingest_bible_pairs --dry-run
 
 review:         ## build the native-review sheet -> corpus/out/review.html
 	python3 -m corpus.make_review_sheet

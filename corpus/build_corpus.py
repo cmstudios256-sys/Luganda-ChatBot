@@ -145,6 +145,89 @@ def retrieval_docs(records: list[dict], *, max_chars: int = 6000) -> list[dict]:
     return docs
 
 
+DEFAULT_REGISTER_CAPS = {"biblical": 0.25}
+
+
+def cap_registers(records: list[dict], caps: dict[str, float] | None = None,
+                  *, seed: str = "yogera") -> tuple[list[dict], dict]:
+    """Keep any single register from taking over the training mix.
+
+    The Bible is ~1.6M words of attested Luganda and it is *biblical register*. Fed to a
+    trainer unfiltered it stops being a strength and becomes the only voice the model has —
+    it starts answering "oli otya?" like a pulpit. So a register with a cap may hold at most
+    ``cap`` of the resulting training text, measured in words:
+
+        allowed_words(register) = cap / (1 - cap) * words_of_everything_else
+
+    Sampling is deterministic (evenly spaced over a stable order), so two runs on the same
+    corpus produce the same mix and a training run can be reproduced. Whole segments are
+    kept or dropped, so the result can overshoot the cap by at most one segment.
+
+    Two honest caveats, both printed rather than hidden:
+      * with nothing *but* the capped register in the corpus, a cap would delete everything —
+        we keep it all and warn instead;
+      * capping applies to training text only. Retrieval keeps every document (see main()).
+    """
+    caps = DEFAULT_REGISTER_CAPS if caps is None else dict(caps)
+    if not caps or not records:
+        return records, {}
+
+    def register_of(rec: dict) -> str | None:
+        reg = rec.get("register")
+        return reg if reg in caps else None
+
+    report: dict[str, dict] = {}
+    others_words = sum(r.get("words", 0) for r in records if register_of(r) is None)
+    for reg, cap in caps.items():
+        group = [r for r in records if register_of(r) == reg]
+        if not group:
+            continue
+        group_words = sum(r.get("words", 0) for r in group)
+        if others_words == 0:
+            report[reg] = {"cap": cap, "words": group_words, "kept_words": group_words,
+                           "dropped_records": 0,
+                           "warning": "this register is the entire corpus — cap not applied, "
+                                      "mix the register or expect a one-note voice"}
+            continue
+        allowed = max(0, int(cap / (1 - cap) * others_words))
+        if group_words <= allowed:
+            report[reg] = {"cap": cap, "words": group_words, "kept_words": group_words,
+                           "dropped_records": 0}
+            continue
+        # even spacing over a stable order beats random sampling: reproducible and spread out
+        ordered = sorted(group, key=lambda r: (r.get("source", ""), r.get("locator", ""), r["id"]))
+        keep_ids: set[str] = set()
+        words = 0
+        step = max(1, len(ordered) * max(0.0, allowed / group_words))
+        picked = [ordered[int(i)] for i in _frange(len(ordered), step)]
+        for rec in picked:
+            if words >= allowed:
+                break
+            keep_ids.add(rec["id"])
+            words += rec.get("words", 0)
+        report[reg] = {"cap": cap, "words": group_words, "kept_words": words,
+                       "dropped_records": len(ordered) - len(keep_ids),
+                       "allowed_words": allowed}
+        records = [r for r in records if register_of(r) != reg or r["id"] in keep_ids]
+    return records, report
+
+
+def _frange(n: int, step: float) -> list[int]:
+    """Indices 0, step, 2*step … below n, without duplicates."""
+    out: list[int] = []
+    seen: set[int] = set()
+    i = 0.0
+    while True:
+        idx = int(i)
+        if idx >= n:
+            break
+        if idx not in seen:
+            seen.add(idx)
+            out.append(idx)
+        i += step
+    return out
+
+
 def cpt_chunks(records: list[dict], *, words_per_chunk: int = 1200) -> list[str]:
     """Plain-text stream for continued pre-training. Text-only: never mix chat turns
     or retrieval markers into this, or the model learns to emit them."""
@@ -202,6 +285,10 @@ def main() -> int:
     ap.add_argument("--retrieval-only", action="store_true", help="skip the CPT text files")
     ap.add_argument("--push-to-app", default="", help="base URL, e.g. http://localhost:8000")
     ap.add_argument("--max-retrieval-docs", type=int, default=20000)
+    ap.add_argument("--max-register-share", nargs="*", metavar="REGISTER=SHARE",
+                    default=["biblical=0.25"],
+                    help="cap a register's share of the CPT training text "
+                         "(default: biblical=0.25; pass nothing to disable)")
     args = ap.parse_args()
 
     out_dir = Path(args.out)
@@ -241,9 +328,23 @@ def main() -> int:
         for doc in docs:
             fh.write(json.dumps(doc, ensure_ascii=False) + "\n")
 
+    train_records, register_report = kept, {}
+    caps = {}
+    for item in args.max_register_share or []:
+        if "=" in item:
+            reg, _, share = item.partition("=")
+            caps[reg.strip()] = float(share)
+    if caps and not args.retrieval_only:
+        train_records, register_report = cap_registers(kept, caps)
+        for reg, info in register_report.items():
+            print(f"register cap: {reg} kept {info['kept_words']:,} of {info['words']:,} words "
+                  f"(cap {info['cap']:.0%}), dropped {info['dropped_records']:,} segment(s)")
+            if info.get("warning"):
+                print(f"  ! {info['warning']}")
+
     cpt_info = {}
     if not args.retrieval_only:
-        chunks = cpt_chunks(kept)
+        chunks = cpt_chunks(train_records)
         cpt_info = write_cpt(chunks, out_dir / "cpt") if chunks else {"note": "no text-only segments for CPT"}
 
     report = {
@@ -260,6 +361,7 @@ def main() -> int:
         "spoken_segments": spoken,
         "retrieval_documents": len(docs),
         "cpt": cpt_info,
+        "register_caps": register_report,
     }
     (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 

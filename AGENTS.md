@@ -1,4 +1,8 @@
-# AGENTS.md — working notes for any coding agent on this repo
+# AGENTS.md
+
+> **Handed this repo to continue training with the Luganda Bible? Read `ANTIGRAVITY-BRIEF.md`
+> first** — it is the ordered, gated version of this file for that job (ingest → cap → validate
+> → train → evaluate), with the acceptance numbers. — working notes for any coding agent on this repo
 
 Read this before you change anything. Yogera is a Luganda-language product: the
 hard part is not the code, it is **not inventing Luganda**. Most regressions here
