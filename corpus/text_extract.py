@@ -49,6 +49,10 @@ def guess_kind(path: Path) -> str:
         return "web"
     if "srt" in path.suffix or "vtt" in path.suffix:
         return "subtitle"
+    if any(w in name for w in ("ebbaluwa", "letter", "emabaluwa")):
+        return "letter"
+    if any(w in name for w in ("olugero", "story", "ennyimba", "poem", "ekifaananyi")):
+        return "literature"
     if any(w in name for w in ("paper", "newspaper", "bukedde", "newvision", "amawulire", "news")):
         return "news"
     if any(w in name for w in ("handbook", "guide", "manual", "kabalaga", "bulagirizi")):

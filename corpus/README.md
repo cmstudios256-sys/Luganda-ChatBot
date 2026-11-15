@@ -6,6 +6,10 @@ Full strategy and the per-source trade-offs: **`../CORPUS-PLAN.md`**. This file 
 # books / handbooks / newspapers / subtitle files
 python -m corpus.ingest_files books/ handbooks/ newspapers/ tv/ --out files
 
+# text you can personally vouch for (your own writing, a proofread book):
+# sets verified:true so it can be used as a training target
+python -m corpus.ingest_files corpus/samples --out samples --verified
+
 # web (robots-aware; check first)
 python -m corpus.ingest_web --check-robots https://example.ug/news/123
 python -m corpus.ingest_web --sitemap https://example.ug/sitemap.xml --limit 200 --out web

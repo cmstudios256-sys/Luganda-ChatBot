@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from . import knowledge, store
 from .config import ROOT, SETTINGS, WEB_DIR
-from .prompts import build_system_prompt
+from .prompts import FEW_SHOTS, build_system_prompt
 from .providers import ProviderError, get_provider, provider_status
 
 app = FastAPI(title="Yogera — Luganda Chatbot", version="1.0.0")
@@ -143,6 +143,8 @@ async def chat(req: ChatRequest, request: Request):
         memory=context["prompt_block"],
     )
     history = store.history_for_model(conv_id)  # already ends with this message
+    if SETTINGS.use_few_shots:
+        history = [*FEW_SHOTS, *history]
     provider = get_provider()
     status = provider_status()
 
@@ -212,8 +214,11 @@ async def chat_sync(req: ChatRequest):
     context = knowledge.build_context(req.message)
     started = time.perf_counter()
     try:
+        history = store.history_for_model(conv_id)
+        if SETTINGS.use_few_shots:
+            history = [*FEW_SHOTS, *history]
         text = await provider.complete(
-            store.history_for_model(conv_id),
+            history,
             system=build_system_prompt(
                 language=req.language,
                 register=req.tone,

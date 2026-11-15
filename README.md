@@ -102,7 +102,7 @@ It is not one pipeline but two outcomes from one corpus — **retrieval** (facts
 handbooks, prices — instant, $0) and **training** (style, register, grammar — slow, GPU). The
 split, the per-source trade-offs, OCR for scanned textbooks, ASR for TV, and what each source is
 legally worth are all in **`CORPUS-PLAN.md`**. Nothing is trusted until a native speaker flips
-`verified: true`.
+`verified: true` (or you attest it up front with `--verified`).
 
 ## Why it sounds native (and where it still doesn't)
 
@@ -119,6 +119,9 @@ The quality of a low-resource-language chatbot is mostly prompt and data enginee
 | "Never word-for-word translate English idiom" | Literal translation is the clearest tell of a non-native speaker |
 | Refuse to invent facts, words, prices, dates | Hallucination is the documented weak spot of Ugandan-language models |
 | Answer short, ask one clarifying question | Luganda chat is conversational; essays read as machine output |
+| **Clock time runs 6-to-6** | 7 a.m. is `ssaawa emu ey'oku makya`, 5 p.m. is `ssaawa kkumi n'emu ez'olweggulo`. Writing "7:00 AM" in a Luganda sentence is an instant tell |
+| **`Ebbaluwa` (letter) layout** | Address block, `Ennaku z'omwezi:`, `Eri …`, body, `Nze mukwano gwo akwagala ennyo,` + name. Taught by rule *and* by example |
+| Numbered months | `Ogwekkumi` = October, `Ogwekkuminogumu` = November, `Ogwekkuminabiri` = December |
 
 It will still get things wrong. **Every seed record in `finetune/data/` is marked
 `"verified": false`** on purpose: get two or three native speakers to go through them with the

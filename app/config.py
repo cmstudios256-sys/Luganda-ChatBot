@@ -57,6 +57,7 @@ class Settings:
     max_tokens: int = 900
     request_timeout: float = 120.0
     allow_english_fallback: bool = True
+    use_few_shots: bool = True
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -112,6 +113,7 @@ def get_settings() -> Settings:
         base_url=os.getenv("LLM_BASE_URL", "").strip(),
         temperature=float(os.getenv("LLM_TEMPERATURE", "0.6")),
         max_tokens=int(os.getenv("LLM_MAX_TOKENS", "900")),
+        use_few_shots=os.getenv("YOGERA_FEW_SHOTS", "1").strip() not in {"0", "false", "no"},
     )
 
 

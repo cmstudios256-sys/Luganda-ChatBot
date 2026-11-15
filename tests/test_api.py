@@ -292,3 +292,47 @@ def test_openai_finetune_validator_catches_system_first_and_short(tmp_path):
     assert any("system message" in p for p in problems)
     assert any("assistant message" in p for p in problems)
     assert any("only 1 examples" in p for p in problems)
+
+
+# --------------------------------------------------------------------------- #
+# Two lessons taken from a real native letter: clock time and the letter form
+# --------------------------------------------------------------------------- #
+def test_prompt_teaches_the_ugandan_clock():
+    from app.prompts import build_system_prompt  # noqa: PLC0415
+
+    prompt = build_system_prompt()
+    # 6-to-6 convention: 7 a.m. is "ssaawa emu ey'oku makya", 5 p.m. is "ssaawa kkumi n'emu"
+    assert "ssaawa emu ey'oku makya" in prompt
+    assert "ssaawa kkumi n'emu ez'olweggulo" in prompt
+    assert "Ogwekkuminogumu" in prompt
+    assert "Never write \"7:00 AM\"" in prompt
+
+
+def test_prompt_teaches_the_letter_form():
+    from app.prompts import build_system_prompt  # noqa: PLC0415
+
+    prompt = build_system_prompt()
+    for marker in ("Endagiriro:", "Ennaku z'omwezi:", "Eri ", "Nze mukwano gwo akwagala ennyo"):
+        assert marker in prompt, marker
+
+
+def test_few_shots_are_well_formed_and_include_a_letter():
+    from app.prompts import FEW_SHOTS  # noqa: PLC0415
+
+    roles = [m["role"] for m in FEW_SHOTS]
+    assert roles[0] == "user"
+    assert all(r == ("user" if i % 2 == 0 else "assistant") for i, r in enumerate(roles)), \
+        "few-shots must alternate user/assistant or the model learns broken turn-taking"
+    assert any("Endagiriro" in m["content"] for m in FEW_SHOTS), "letter example missing"
+    assert all(m["content"].strip() for m in FEW_SHOTS)
+
+
+def test_seed_set_covers_letter_and_time_topics():
+    records = [json.loads(l) for l in
+               (ROOT / "finetune" / "data" / "seed_luganda.jsonl").read_text(encoding="utf-8").splitlines()
+               if l.strip()]
+    topics = {r.get("topic") for r in records}
+    assert any("letter" in t for t in topics)
+    assert "time-convention" in topics
+    # every added record keeps the honest flag
+    assert all(r.get("verified") is False for r in records if "letter" in str(r.get("topic")))

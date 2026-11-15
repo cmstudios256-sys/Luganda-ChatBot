@@ -44,6 +44,8 @@ def main() -> int:
                     help="keep code-mixed Luganda/English (default on, flagged)")
     ap.add_argument("--drop-mixed", dest="keep_mixed", action="store_false")
     ap.add_argument("--include-english", action="store_true", help="keep English text too (rarely wanted)")
+    ap.add_argument("--verified", action="store_true",
+                    help="you, a native speaker, attest this text is correct Luganda — sets verified:true")
     ap.add_argument("--dry-run", action="store_true", help="list what would be read, extract nothing")
     args = ap.parse_args()
 
@@ -67,6 +69,8 @@ def main() -> int:
             failures.append(f"{path}: {exc}")
             continue
         for seg in got:
+            if args.verified:
+                seg.meta["verified"] = True
             segments.extend(split_big_segment(seg))
         print(f"  {path.name}: {sum(len(s.text.split()) for s in got):,} words in {len(got)} segment(s)")
 
