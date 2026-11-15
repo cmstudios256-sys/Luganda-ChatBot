@@ -121,6 +121,7 @@ The quality of a low-resource-language chatbot is mostly prompt and data enginee
 | Answer short, ask one clarifying question | Luganda chat is conversational; essays read as machine output |
 | **Clock time runs 6-to-6** | 7 a.m. is `ssaawa emu ey'oku makya`, 5 p.m. is `ssaawa kkumi n'emu ez'olweggulo`. Writing "7:00 AM" in a Luganda sentence is an instant tell |
 | **`Ebbaluwa` (letter) layout** | Address block, `Ennaku z'omwezi:`, `Eri …`, body, `Nze mukwano gwo akwagala ennyo,` + name. Taught by rule *and* by example |
+| **Verified ≠ scraped** | Scraped text is `verified: false` and never trains until a native speaker signs it in `corpus/out/review.html` (`make review`). The Luganda Bible arrives already attested |
 | Numbered months | `Ogwekkumi` = October, `Ogwekkuminogumu` = November, `Ogwekkuminabiri` = December |
 
 It will still get things wrong. **Every seed record in `finetune/data/` is marked

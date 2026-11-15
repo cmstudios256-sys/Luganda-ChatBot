@@ -1,4 +1,4 @@
-.PHONY: run install validate build ingest train-plan train eval clean
+.PHONY: run install validate build ingest train-plan train eval clean corpus-files corpus-web corpus-build corpus-load corpus-bible review review-apply review-status
 
 run:            ## start the chatbot on :8000
 	python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -41,6 +41,18 @@ corpus-web:     ## check one URL against robots.txt before crawling
 
 corpus-build:   ## merge + dedupe + report
 	python3 -m corpus.build_corpus
+
+corpus-bible:  ## the Luganda Bible: ./bayibuli (verse-numbered .txt per book)
+	python3 -m corpus.ingest_bible bayibuli/ --license "check the edition"
+
+review:         ## build the native-review sheet -> corpus/out/review.html
+	python3 -m corpus.make_review_sheet
+
+review-apply:   ## apply verdicts from corpus/out/verdicts.txt
+	python3 -m corpus.make_review_sheet --apply corpus/out/verdicts.txt
+
+review-status:  ## how many words are signed off, per source kind
+	python3 -m corpus.make_review_sheet --status
 
 corpus-load:    ## push the corpus into the running app's memory
 	python3 -m corpus.build_corpus --push-to-app http://localhost:8000

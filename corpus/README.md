@@ -6,6 +6,10 @@ Full strategy and the per-source trade-offs: **`../CORPUS-PLAN.md`**. This file 
 # books / handbooks / newspapers / subtitle files
 python -m corpus.ingest_files books/ handbooks/ newspapers/ tv/ --out files
 
+# the Luganda Bible: verse-numbered .txt per book, paragraphs rebuilt for you
+python -m corpus.ingest_bible bayibuli/ --license "public domain (UBS 1968)"
+python -m corpus.ingest_bible bayibuli/ --parallel english/   # + EN->LG verse pairs
+
 # text you can personally vouch for (your own writing, a proofread book):
 # sets verified:true so it can be used as a training target
 python -m corpus.ingest_files corpus/samples --out samples --verified
@@ -55,3 +59,18 @@ python -m corpus.build_corpus --push-to-app http://localhost:8000
    is a bad scrape — the report says so.
 5. **Boilerplate is stripped, but content is never silently deleted** — if removing repeated
    lines would gut a segment, the original is kept and flagged instead.
+
+## Signing text off
+
+Nothing scraped or imported is trained on until a native speaker signs it. The Bible is the
+exception (a published translation is already attested); it comes in `verified: true` and
+tagged `register: biblical` so it stays a minority of any fine-tuning mix.
+
+```bash
+python -m corpus.make_review_sheet           # -> corpus/out/review.html (read, tick, copy)
+python -m corpus.make_review_sheet --apply corpus/out/verdicts.txt
+python -m corpus.make_review_sheet --status
+```
+
+Verdict lines: `CODE ok`, `CODE no`, `CODE fix: <corrected text>`. Segment files are backed
+up to `*.jsonl.bak` before being rewritten.

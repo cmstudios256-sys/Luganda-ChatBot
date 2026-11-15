@@ -24,8 +24,10 @@ are language regressions, and they pass every test unless you keep the rules bel
   fonts. Keep it that way (the preview iframe has no network access).
 - `corpus/` — ingest books/newspapers/TV/TikTok/web into Luganda text: `langid.py`
   (Luganda vs English vs Swahili vs code-mixed), `text_extract.py` (PDF/DOCX/EPUB/HTML/SRT),
-  `ingest_files.py` / `ingest_web.py` / `ingest_media.py`, `build_corpus.py` (boilerplate
-  stripping, dedupe, retrieval docs, CPT text). Strategy: `../CORPUS-PLAN.md`.
+  `ingest_files.py` / `ingest_web.py` / `ingest_media.py` / `ingest_bible.py`,
+  `build_corpus.py` (boilerplate stripping, dedupe, retrieval docs, CPT text), and
+  `make_review_sheet.py` (the native-speaker sign-off loop that flips `verified`).
+  Strategy: `../CORPUS-PLAN.md`.
 - `finetune/` — offline data + training pipeline. Its own README explains the sequence
   and the per-dataset licences. `--dry-run` works with no GPU; real training does not.
 
@@ -67,7 +69,13 @@ leak into datasets or screenshots presented as real model output.
 8. **Corpus discipline.** `corpus/ingest_web.py` must keep obeying robots.txt (never add a
    bypass flag); ASR transcripts stay `modality: spoken` + `verified: false` and must never enter
    `cpt/train.txt`; every ingested record stays `verified: false` until a human signs it off.
-9. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
+9. **Only a human can verify.** `verified: true` means a native speaker read that text and
+   vouched for it; the trainer filters on the flag. The two legitimate ways it gets set:
+   `corpus.make_review_sheet --apply` (the review loop) or `--verified` on input you are
+   personally attesting. The exception is `ingest_bible.py`, which sets it because a
+   published translation is already attested — and tags the record `register: biblical` so a
+   trainer can cap its share of the mix. Never widen that exception on your own.
+10. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
    and every reply must still be generated from the same prompt+schema. Do not silently
    switch the product to "the fine-tune" — `TRAINING-OPTIONS.md` explains which route is
    active and why.

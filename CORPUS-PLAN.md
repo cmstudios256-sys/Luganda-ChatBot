@@ -89,6 +89,64 @@ Every stage runs on a laptop. The only heavy step is the last one.
   your list. Keep it, but weight it for *style* only, and never for grammar or facts.
 - **Rights:** someone else's video, often with licensed music. Use it to study; do not ship it.
 
+### 📖 The Luganda Bible — the largest body of attested Luganda in existence
+
+You mentioned you can share from the Bible. Good instinct: it is the single most useful
+thing on this list, and for a reason the others cannot match — **it was translated by
+named Luganda translators and published by a Bible society.** Nobody has to review it.
+That makes it the first real training data, not just more text.
+
+What it gives you:
+
+* **~31,000 verses / ~1.6M words** of grammatical, concord-correct Luganda — the largest
+  verified chunk you will own.
+* Full coverage of **noun-class agreement and concords**, which is exactly where non-native
+  Luganda falls apart (`omuntu **a**genda` / `abantu **ba**genda`).
+* A ready-made **English parallel** if you take a bilingual edition — verse-aligned
+  translation pairs, which is the cheapest high-quality SFT signal for a low-resource
+  language.
+
+What it does **not** give you, and this is the whole trick:
+
+* **It is not how people talk.** Biblical register ("Awo ne kiwedde", "kubanga", long
+  chained clauses) is *correct* Luganda and *wrong* as a chat voice. A model trained mostly
+  on Scripture answers "oli otya?" like a preacher. So every record from here is tagged
+  `register: biblical` and kept a **minority of the fine-tuning mix — a quarter at most**,
+  with the rest of the quota taken by letters, newspapers and conversation.
+* **Old editions use older orthography** (`ku` vs `ku`, `'` usage, `nn`/`n` choices differ
+  from your school-register spelling). Pick one edition and stay in it.
+* It teaches no facts about Kampala in 2026. Prices, schools, politics: retrieval, not the Bible.
+
+Which file to use, and why it matters legally:
+
+| Edition | Status | Use it if |
+|---|---|---|
+| **1968 UBS edition** (also on ebible.org as `lug`) | public domain | you want zero obligations. Oldest spelling. |
+| **Biblica "Bayibuli Entukuvu"** (1984–2014) | CC BY-SA 4.0 — attribution + share-alike | you want modern, readable Luganda. Keep the attribution in `--license`, and note that a *distributed dataset* built on it inherits CC BY-SA |
+| **Bible Society of Uganda 2003** | all rights reserved | not without written permission |
+| **`kambale/luganda-english-bible-corpus`** on HuggingFace (30,844 verse pairs) | check the dataset card — provenance traces back to one of the above | you want the parallel pairs without parsing anything |
+
+Train-on vs distribute: whether model *weights* fine-tuned on CC BY-SA text are themselves
+a derivative is legally unsettled and jurisdiction-dependent; published datasets clearly are.
+If you plan to hand the model to a school or sell it, use the public-domain 1968 edition and
+the question disappears. [[+ attribution text goes in the dataset card and README]]
+
+The pipeline handles the format for you — verse numbers stripped, verses packed into
+readable paragraphs, running heads and page numbers dropped, chapter boundaries respected:
+
+```bash
+# per-book .txt files whose lines start with chapter:verse
+python3 -m corpus.ingest_bible bayibuli/ --out bible --license "public domain (UBS 1968)"
+
+# with an English folder beside it -> also writes verse-aligned EN->LG pairs
+python3 -m corpus.ingest_bible bayibuli/ --parallel english/ --out bible
+#   -> corpus/out/pairs/bible_parallel.jsonl  ({luganda, english, ref})
+```
+
+Records land as `kind: bible`, `register: biblical`, `verified: true` (a published
+translation is attested Luganda — that is the definition), and the edition + licence are
+kept on every record. Pass `--no-verify` if you are unsure the file is a real edition.
+
 ### 🌍 "Stuff from Google" — mostly a trap, with exceptions
 - **Reality:** the vast majority of pages mentioning Uganda are in English. Without filtering,
   you will build an English corpus with a Luganda name. `corpus/langid.py` scores every segment
@@ -101,6 +159,31 @@ Every stage runs on a laptop. The only heavy step is the last one.
   same paragraph repeated on ten domains.
 
 ---
+
+## Signing it off (the only step that makes any of this trainable)
+
+Everything scraped or imported is `verified: false`. That flag is not paperwork — the trainer
+filters on it, so unverified text never reaches a fine-tune. The review sheet is how a flag
+gets flipped without you touching JSON:
+
+```bash
+python3 -m corpus.make_review_sheet              # -> corpus/out/review.html
+#   read it, tick ok / fix / reject per item, type corrections where needed,
+#   press "Build verdicts", copy the box, save as corpus/out/verdicts.txt
+python3 -m corpus.make_review_sheet --apply corpus/out/verdicts.txt
+python3 -m corpus.make_review_sheet --status     # words signed off, per source kind
+```
+
+* `CODE ok` → `verified: true`, trains as-is
+* `CODE fix: <corrected Luganda>` → your text replaces it, `review: corrected`
+* `CODE no` → stays on disk, excluded from training (nothing silently disappears)
+* Segment files are backed up to `*.jsonl.bak` before any rewrite
+* Codes are a hash of the record id, so an approval cannot drift onto a different
+  paragraph when the corpus grows between reading and applying
+
+Realistic pace: an unhurried hour gets through ~40 items ≈ 5,000 words. That is the honest
+rate limit on this project, and it is why the Bible matters — it is the only source that
+arrives already signed.
 
 ## The commands (all run offline except the crawls)
 
@@ -156,9 +239,10 @@ you do not need to be to have a good bot).
 1. **Handbooks + your own facts → retrieval.** One evening. The bot becomes useful.
 2. **Newspapers (with permission) → retrieval + style.** Ongoing.
 3. **Textbooks → OCR if needed → retrieval now, CPT later.**
-4. **A few TV episodes → ASR → review a sample → SFT for register.**
-5. **TikTok → ASR → style only, heavily filtered.**
-6. **Only then:** fine-tune (QLoRA or hosted), evaluate, and compare against the prompt +
+4. **The Bible → ingest now, it needs no review.** Tagged biblical, capped at a quarter of the mix.
+5. **A few TV episodes → ASR → review a sample → SFT for register.**
+6. **TikTok → ASR → style only, heavily filtered.**
+7. **Only then:** fine-tune (QLoRA or hosted), evaluate, and compare against the prompt +
    retrieval baseline. If the fine-tune does not beat it, keep the baseline — it is cheaper and
    it updates instantly.
 
