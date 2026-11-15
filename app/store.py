@@ -58,18 +58,14 @@ def _new_id(prefix: str = "c") -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
-_initialized_for: Path | None = None
-
-
 def connect() -> sqlite3.Connection:
-    """Open the DB, creating the schema if the file is new (or was deleted)."""
-    global _initialized_for
+    """Open the DB. The schema is re-applied on every open (all statements are
+    IF NOT EXISTS) so deleting the file — or a crash mid-write — cannot leave the
+    app serving 500s."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    if _initialized_for != DB_PATH:
-        conn.executescript(SCHEMA)
-        _initialized_for = DB_PATH
+    conn.executescript(SCHEMA)
     return conn
 
 
