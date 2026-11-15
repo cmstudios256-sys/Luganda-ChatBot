@@ -144,6 +144,8 @@ def _match_expr(query: str, *, max_terms: int = 18) -> str:
         neighbours = (LEXICON.get(tok, []) + ENGLISH_TO_LUGANDA.get(tok, []))[:2]
         for mapped in neighbours:
             terms.append(f'"{mapped}"')
+            if len(mapped) >= 4:
+                terms.append(f'"{mapped}"*')   # cost/costs, price/prices, deliver/delivery
         if len(terms) >= max_terms:
             break
     return " OR ".join(dict.fromkeys(terms))
