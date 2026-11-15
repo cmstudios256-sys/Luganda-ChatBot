@@ -12,7 +12,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,11 @@ class ChatRequest(BaseModel):
     teach_mode: bool = False
     english_gloss: bool = False
     temperature: float | None = None
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    backend: str | None = None      # stub | hf | http | local (default: YOGERA_TTS)
 
 
 class FeedbackRequest(BaseModel):
@@ -363,6 +368,51 @@ async def search_knowledge(q: str, k: int = 4):
 # Static UI
 # --------------------------------------------------------------------------- #
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+
+
+# --------------------------------------------------------------------------- #
+# Speech (phase two — text has to be right first; see VOICE-PLAN.md)
+# --------------------------------------------------------------------------- #
+@app.get("/api/tts/status")
+async def tts_status():
+    from voice.tts import backend_name
+
+    configured = {
+        "stub": "always available — silence, not a voice",
+        "hf": "needs HF_TOKEN (Sunbird tts-vits-lug)",
+        "http": "needs YOGERA_TTS_URL",
+        "local": "needs YOGERA_TTS_CMD",
+    }
+    name = backend_name()
+    return {
+        "backend": name,
+        "real_voice": name != "stub",
+        "requirement": configured.get(name, "unknown backend"),
+        "backends": configured,
+        "note": "Every reply is text-first. Speech is produced from that text, so a bad "
+                "sentence sounds exactly as bad as it reads.",
+    }
+
+
+@app.post("/api/tts")
+async def tts(req: TTSRequest):
+    """Speak a reply. Degrades to silence with an explicit header instead of pretending."""
+    from voice.tts import synthesize
+
+    result = synthesize(req.text, backend=req.backend)
+    if not result.audio:
+        raise HTTPException(status_code=400, detail="; ".join(result.warnings) or "nothing to speak")
+    return Response(
+        content=result.audio,
+        media_type=result.content_type,
+        headers={
+            "X-TTS-Backend": result.backend,
+            "X-TTS-Real-Voice": "true" if result.is_real_voice else "false",
+            # HTTP headers are latin-1; Luganda quotes and em dashes must not 500 the request
+            "X-TTS-Warnings": "; ".join(result.warnings)[:400].encode("latin-1", "replace").decode("latin-1"),
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/")

@@ -16,3 +16,4 @@ finetune/data/exported/
 .pytest_cache/
 
 corpus/out/
+voice/out/

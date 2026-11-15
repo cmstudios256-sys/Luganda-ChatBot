@@ -1,0 +1,30 @@
+{"id": "c01", "prompt": "Oli otya?", "tests": "greeting + reciprocates the question", "must_include": ["bulungi", "ggwe", "naawe"], "max_words": 40, "verified": false}
+{"id": "c02", "prompt": "Weebale nnyo.", "tests": "accepts thanks without an essay", "must_include": ["kale", "weebale", "tewali"], "max_words": 30, "verified": false}
+{"id": "c03", "prompt": "Erinnya lyo ly'ani?", "tests": "answers about itself without slipping into English", "must_include": ["nze", "yogera"], "max_words": 40, "verified": false}
+{"id": "c04", "prompt": "Nnyonnyola mu bumpi: omuddo gukola gutya?", "tests": "explains simply, asks nothing back", "max_words": 90, "verified": false}
+{"id": "c05", "prompt": "Ssaawa mmeka kati?", "tests": "6-to-6 clock, never '7:00 AM'", "must_include": ["ssaawa"], "must_not_include": ["AM", "PM", "a.m.", "p.m."], "max_words": 30, "verified": false}
+{"id": "c06", "prompt": "Olunaku lwaleero lwa ddi?", "tests": "date said in Luganda with a numbered month", "must_not_include": ["November", "November 15"], "max_words": 30, "verified": false}
+{"id": "c07", "prompt": "Njagala okugenda e Jinja. Ntambula ntya?", "tests": "directions: concrete, ordered, no invented prices", "max_words": 90, "verified": false}
+{"id": "c08", "prompt": "Emmere eno ya ssente mmeka?", "tests": "price: says it does not know rather than inventing one", "max_words": 40, "verified": false}
+{"id": "c09", "prompt": "Oyinza okunnyambako okuwandiika ebbaluwa eri mukwano gwange?", "tests": "letter form: Endagiriro, Ennaku z'omwezi, Eri …, signature", "max_words": 160, "verified": false}
+{"id": "c10", "prompt": "Nnyambeko okutegeera ekigambo 'olutindo'.", "tests": "honest about an uncertain word instead of inventing a meaning", "max_words": 60, "verified": false}
+{"id": "c11", "prompt": "Mbu nti gy'oli tewali mmere. Kituufu?", "tests": "does not accept a false premise", "max_words": 50, "verified": false}
+{"id": "c12", "prompt": "Nedda, si kye ntegeeza. Ntegeeza nti emmotoka yange yonna yabulwa.", "tests": "repairs after a correction, stays in Luganda", "max_words": 60, "verified": false}
+{"id": "c13", "prompt": "Kiki kye nkubuuzizza?", "tests": "turn-taking: remembers the previous turn", "max_words": 40, "verified": false}
+{"id": "c14", "prompt": "Yogera nze ku lw'omwana wange ow'emyaka 6.", "tests": "register shift: simpler words, gentler", "max_words": 70, "verified": false}
+{"id": "c15", "prompt": "Mbu nti e Jinja eri ku nnyanja. Kituufu?", "tests": "corrects a factual error politely", "must_include": ["Kiyira", "mugga"], "max_words": 60, "verified": false}
+{"id": "c16", "prompt": "Nkusaba onnyambe ku ssente z'essomero. Nnyinza ntya?", "tests": "advice stays general, no invented policy", "max_words": 80, "verified": false}
+{"id": "c17", "prompt": "Obudde buli butya leero?", "tests": "weather: hedges instead of pretending to know", "max_words": 50, "verified": false}
+{"id": "c18", "prompt": "Nkwatira mu ngeri emu: ndi wa Uganda, njagala okumanya ebifa.", "tests": "does not ramble; asks one clarifying question", "max_words": 60, "verified": false}
+{"id": "c19", "prompt": "Laga ebyo by'oyogedde mu ngeri empanvu.", "tests": "asks what to shorten rather than dumping a wall of text", "max_words": 50, "verified": false}
+{"id": "c20", "prompt": "Soma kino: 'Nkukubira ku ssimu naye nga teriiko.' Kitegeeza ki?", "tests": "understands a native sentence it was taught", "max_words": 60, "verified": false}
+{"id": "c21", "prompt": "Wandiika emisomo esatu ku kwetegekera ebigezo.", "tests": "instruction with a count: exactly three, numbered in Luganda", "must_not_include": ["1.", "2.", "3."], "max_words": 90, "verified": false}
+{"id": "c22", "prompt": "Can you also explain that in English?", "tests": "English request honoured, with Luganda kept as the default afterwards", "max_words": 90, "verified": false}
+{"id": "c23", "prompt": "Ninno. Ndowooza nti obutale bwaffe bulungi nnyo.", "tests": "informal register: does not switch to formal school Luganda", "max_words": 60, "verified": false}
+{"id": "c24", "prompt": "Bw'oba toyinza kunnamba, tekiikirira eky'amazima.", "tests": "refuses to invent facts under pressure", "max_words": 60, "verified": false}
+{"id": "c25", "prompt": "Ku nkomerero y'omwezi, njagala okukola ki ku ssente zange?", "tests": "money advice: general, cautious, no invented products", "max_words": 90, "verified": false}
+{"id": "c26", "prompt": "Wandiika ebbaluwa ng'oyogera n'omukyala Mukasa ku ky'okujja ku mbaga.", "tests": "respectful register with an elder, letter form kept", "max_words": 160, "verified": false}
+{"id": "c27", "prompt": "Ssaawa mmeka, era olunaku lwe lusuze lwali lwa ddi?", "tests": "two facts in one turn, both answered, clock convention kept", "must_not_include": ["AM", "PM"], "max_words": 45, "verified": false}
+{"id": "c28", "prompt": "Yogera mangu, njagala kimu.", "tests": "brevity request honoured: one sentence", "max_words": 25, "verified": false}
+{"id": "c29", "prompt": "Nnyonnyola 'ennyanja' ne 'omugga' mu ngeri eyangu.", "tests": "definition by contrast, both words used correctly", "must_include": ["ennyanja", "omugga"], "max_words": 70, "verified": false}
+{"id": "c30", "prompt": "Ekyo kye wankubye tekiri mu Luganda lwa nnaku zino.", "tests": "accepts stylistic criticism without grovelling", "max_words": 60, "verified": false}

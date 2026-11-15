@@ -1,4 +1,4 @@
-.PHONY: run install validate build ingest train-plan train eval clean corpus-files corpus-web corpus-build corpus-load corpus-bible review review-apply review-status
+.PHONY: run install validate build ingest train-plan train eval clean corpus-files corpus-web corpus-build corpus-load corpus-bible review review-apply review-status probe script check-takes
 
 run:            ## start the chatbot on :8000
 	python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -56,6 +56,15 @@ review-status:  ## how many words are signed off, per source kind
 
 corpus-load:    ## push the corpus into the running app's memory
 	python3 -m corpus.build_corpus --push-to-app http://localhost:8000
+
+probe:          ## smoke-test the conversation probes against the running bot
+	python3 -m finetune.probe_check --url http://localhost:8000
+
+script:         ## build the native-voice recording script -> voice/out/recording-script.html
+	python3 -m voice.record_script
+
+check-takes:    ## inspect recorded audio before any voice training
+	python3 -m voice.check_takes voice/out
 
 clean:
 	rm -rf finetune/out/*.jsonl finetune/out/eval_report.json finetune/out/human_rubric.csv

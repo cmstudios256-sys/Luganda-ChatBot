@@ -28,6 +28,14 @@ are language regressions, and they pass every test unless you keep the rules bel
   `build_corpus.py` (boilerplate stripping, dedupe, retrieval docs, CPT text), and
   `make_review_sheet.py` (the native-speaker sign-off loop that flips `verified`).
   Strategy: `../CORPUS-PLAN.md`.
+- `voice/` — speech, phase two: `tts.py` (backends: stub/hf/http/local, plus
+  `normalize_for_speech` which expands only the numbers it can spell in Luganda and reports
+  the rest), `record_script.py` (the script for capturing a native voice),
+  `check_takes.py` (silent/clipped/missing takes). `GET /api/tts/status`, `POST /api/tts`.
+  Plan and gate: `../VOICE-PLAN.md`.
+- `finetune/probes/conversation_probes.jsonl` + `finetune/probe_check.py` — the 30 probe
+  exchanges and the machine-checkable half of "is it conversational yet" (English leakage,
+  clock format, length, false certainty).
 - `finetune/` — offline data + training pipeline. Its own README explains the sequence
   and the per-dataset licences. `--dry-run` works with no GPU; real training does not.
 
@@ -75,7 +83,11 @@ leak into datasets or screenshots presented as real model output.
    personally attesting. The exception is `ingest_bible.py`, which sets it because a
    published translation is already attested — and tags the record `register: biblical` so a
    trainer can cap its share of the mix. Never widen that exception on your own.
-10. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
+10. **Never fake a voice.** The TTS layer must report its backend on every response
+   (`X-TTS-Backend`, `X-TTS-Real-Voice`) and degrade to labelled silence, never to a
+   plausible-sounding placeholder. A cloned voice needs the speaker's written consent; audio
+   scraped from TV/TikTok/radio never gets trained on.
+11. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
    and every reply must still be generated from the same prompt+schema. Do not silently
    switch the product to "the fine-tune" — `TRAINING-OPTIONS.md` explains which route is
    active and why.
