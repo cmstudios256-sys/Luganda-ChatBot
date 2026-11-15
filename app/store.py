@@ -169,6 +169,24 @@ def history_for_model(conv_id: str, limit: int = 20) -> list[dict[str, str]]:
     return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
 
 
+def get_message(message_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM messages WHERE id=?", (message_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def preceding_user_message(message_id: str) -> str:
+    """The user turn a given assistant message was answering."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT m2.content FROM messages m1 JOIN messages m2"
+            "  ON m2.conversation_id = m1.conversation_id AND m2.rowid < m1.rowid"
+            " WHERE m1.id = ? AND m2.role = 'user' ORDER BY m2.rowid DESC LIMIT 1",
+            (message_id,),
+        ).fetchone()
+    return row["content"] if row else ""
+
+
 def list_conversations(limit: int = 50) -> list[dict]:
     with connect() as conn:
         rows = conn.execute(

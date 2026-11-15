@@ -24,7 +24,7 @@ real conversations into a model that actually speaks the language instead of tra
 
 <table><tr>
 <td><img src="docs/home.png" alt="empty state" width="380"></td>
-<td><img src="docs/learning-loop.png" alt="learning drawer" width="380"></td>
+<td><img src="docs/memory.png" alt="learning drawer: knowledge memory" width="380"></td>
 </tr></table>
 
 ## 60-second start
@@ -42,6 +42,9 @@ so you can test the interface, the feedback loop and the export before you spend
 **Fastest way to a genuinely good Luganda model today:** point it at a strong frontier model,
 not at a small fine-tune.
 
+**No GPU? You do not need one to make it learn.** Two of the four learning routes run on a
+laptop: retrieval + memory (below) and hosted fine-tuning. See `TRAINING-OPTIONS.md`.
+
 ```env
 # .env
 LLM_PROVIDER=openai
@@ -51,6 +54,37 @@ OPENAI_API_KEY=sk-...
 
 Then, when you want the model to sound like *your* Luganda — the register, the greetings, the
 vocabulary of your users — run the loop in `finetune/README.md`.
+
+## It learns without a GPU (the default path)
+
+`app/knowledge.py` gives the bot a memory that is not weights:
+
+- **Facts.** Paste your prices, hours, policies or FAQ into the knowledge base (UI: 📈 drawer →
+  *Okujjukira*, or `POST /api/knowledge`). Retrieved with SQLite FTS5 + BM25 — no vector database,
+  no dependencies, works offline.
+- **Preferred phrasing.** A 👍 stores that answer as an approved phrasing; a 👎 with your rewrite
+  stores *your* version. Similar questions retrieve them, so the bot reuses what a Muganda
+  actually approved instead of inventing a new sentence.
+- **A Luganda↔English glossary** bridges the language gap in retrieval: ask `ssente mmeka ku
+  mmwanyi?` and the English line "a 500g bag costs 18,000 UGX" still matches.
+
+Nothing is retrained, yet behaviour changes from the next message onwards. When you have enough
+corrections to be worth a training run, that same data is already in `finetune/data/exported/`.
+
+```bash
+curl -X POST localhost:8000/api/knowledge -H 'content-type: application/json' \
+  -d '{"title":"Prices","text":"A 500g bag costs 18,000 UGX. Delivery in Kampala is 5,000 UGX."}'
+curl "localhost:8000/api/knowledge/search?q=ssente%20mmeka"
+```
+
+| Route | GPU | Cost | Use it for |
+|---|---|---|---|
+| Retrieval + memory (this) | none | $0 | Facts, policies, your voice — starts working today |
+| Hosted fine-tune (`finetune/train_openai.py`) | none | a few $ | Behaviour, register, tone |
+| Free Colab T4 (`finetune/colab_qlora.ipynb`) | free T4 | $0 | An 8B adapter you can run locally |
+| Rented GPU (`finetune/train_lora.py`) | A100 40 GB | ~$3–6/run | Sunflower-14B, best Luganda, in-house |
+
+Full comparison, honest costs and limits: **`TRAINING-OPTIONS.md`**.
 
 ## Why it sounds native (and where it still doesn't)
 
@@ -84,6 +118,8 @@ It will still get things wrong. **Every seed record in `finetune/data/` is marke
 | `POST` | `/api/export` | Write `finetune/data/exported/{chats_sft,chats_dpo}.jsonl` |
 | `GET` | `/api/export/download` | Download the SFT file |
 | `GET`/`POST` | `/api/settings` | Inspect or switch provider/model/key at runtime (memory only) |
+| `POST`/`GET`/`DELETE` | `/api/knowledge` | Add / list / remove documents the bot must remember |
+| `GET` | `/api/knowledge/search?q=` | Preview exactly what retrieval would inject for a question |
 | `GET` | `/api/health` | Provider status + usage stats |
 
 ```bash
@@ -123,7 +159,10 @@ pytest -q       # 14 tests, offline, ~1s: API, streaming, feedback→export, chr
 yogera/
 ├─ app/          FastAPI backend, Luganda prompts, providers, SQLite store
 ├─ web/          single-file chat UI (no CDN, no build step)
-├─ finetune/     ingest · validate · build · train_lora · train_dpo · eval  (+ its own README)
+├─ finetune/     ingest · validate · build · train_lora · train_dpo · train_openai · eval
+│               + colab_qlora.ipynb (free T4) + its own README
+├─ TRAINING-OPTIONS.md   six ways to train, ranked by cost — two need no GPU
+├─ AGENTS.md     brief for whatever coding agent opens this repo next
 ├─ tests/
 ├─ .env.example  five provider recipes
 ├─ requirements.txt  Makefile  run.sh
@@ -134,8 +173,9 @@ yogera/
 - **Luganda is low-resource.** A frontier model with a good prompt is fluent-ish but still makes
   agreement errors; a small fine-tune on 1,000 rows will be *worse*, not better. The pipeline here
   is designed to grow into a real dataset, not to pretend 26 seed rows are one.
-- **No retrieval yet.** There is no RAG layer, so it cannot answer questions about your business,
-  prices or policies from documents. `store.py` and the export path are the seams where that goes.
+- **Retrieval is keyword-based, not semantic.** FTS5 + a glossary handles Luganda/English keyword
+  overlap, not paraphrase. If users ask things in many different ways, add embeddings later —
+  `app/knowledge.py:search_documents` is the one function to swap.
 - **Text only.** Luganda users overwhelmingly prefer voice. Sunbird ships usable
   `asr-whisper-large-v3-salt` and `tts-vits-lug` models — voice input is the highest-impact next step.
 - **Demo mode is not a model.** With no key, replies are keyword-routed canned lines so the UI and
@@ -143,6 +183,8 @@ yogera/
 
 ## Roadmap that would matter most
 
+0. **Native-review tool** — a page that loads the review queue and flips `verified: true`. It is
+   the bottleneck for every other improvement.
 1. **Voice** — Whisper-Luganda for input, VITS-Luganda for output (both public on the Hub).
 2. **WhatsApp/USSD front-end** — where Ugandan users actually are.
 3. **RAG over your documents** — support and health content in Luganda, grounded, not guessed.

@@ -24,5 +24,14 @@ train:          ## the real thing (GPU box)
 eval:           ## chrF++ / BLEU / LLM judge + native-speaker sheet
 	python3 finetune/eval.py --judge
 
+cloud-plan:     ## validate the dataset for hosted fine-tuning (no GPU, no network)
+	python3 finetune/train_openai.py --dry-run
+
+cloud-train:    ## hosted fine-tune: uploads + starts the job (needs OPENAI_API_KEY)
+	python3 finetune/train_openai.py
+
+notebook:       ## open the free-T4 Colab notebook path
+	@echo "Upload the repo, or run: jupyter lab finetune/colab_qlora.ipynb"
+
 clean:
 	rm -rf finetune/out/*.jsonl finetune/out/eval_report.json finetune/out/human_rubric.csv

@@ -16,6 +16,10 @@ are language regressions, and they pass every test unless you keep the rules bel
   offline `mock`. All behind one `stream()` async generator. httpx only, no vendor SDKs.
 - `app/store.py` — SQLite persistence + the export that turns chats into
   `{messages:[...]}` SFT rows and `(prompt, chosen, rejected)` DPO pairs.
+- `app/knowledge.py` — **the no-GPU learning path**: FTS5 document retrieval + exemplars
+  (👍 answers and human rewrites) injected into the system prompt, plus a Luganda↔English
+  glossary (`LEXICON`) that bridges retrieval across languages. Swapping the retriever for
+  embeddings starts and ends in `search_documents()`.
 - `web/index.html` — single file UI, inline CSS/JS, no build step, no CDN, no external
   fonts. Keep it that way (the preview iframe has no network access).
 - `finetune/` — offline data + training pipeline. Its own README explains the sequence
@@ -31,6 +35,7 @@ make validate                        # dataset checks (Luganda-aware)
 make build                           # dedupe + split -> finetune/out/{train,val,test}.jsonl
 make train-plan                      # QLoRA plan without downloading a model
 python finetune/eval.py --predictions preds.jsonl   # chrF++ / BLEU, no key needed
+python finetune/train_openai.py --dry-run           # hosted fine-tune: validates files, no network
 ```
 
 Without any API key the app runs in **demo mode**: `MockProvider` returns canned
@@ -55,6 +60,10 @@ leak into datasets or screenshots presented as real model output.
 6. **Offline-first tests.** No test may require a network or an API key. Provider
    behaviour is tested through the mock or a local fake server.
 7. **UI has no external dependencies.** Inline everything; no fonts, CDNs or images by URL.
+8. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
+   and every reply must still be generated from the same prompt+schema. Do not silently
+   switch the product to "the fine-tune" — `TRAINING-OPTIONS.md` explains which route is
+   active and why.
 
 ## Where to extend, and how
 
@@ -63,8 +72,9 @@ leak into datasets or screenshots presented as real model output.
 | Add a language rule | Append to the relevant numbered section in `app/prompts.py`, add a `test_system_prompt_*` assertion | Rewrite the whole prompt and drop the grammar tables |
 | Add a provider | Subclass `BaseProvider`, implement `stream()`, register in `get_provider()` + `KEY_ENV` in `config.py` | Add a vendor SDK; keep it httpx |
 | Add a corpus | `finetune/ingest_hf.py --dataset ... --preset ...` then `validate_dataset.py`, then record the licence in `finetune/README.md` | Commit the downloaded corpus (gitignored, and licences vary) |
+| Train without a GPU | `finetune/train_openai.py` (hosted API) or `finetune/colab_qlora.ipynb` (free T4) | Claim a T4 can train Sunflower-14B — it cannot fit |
 | Change training | Edit `finetune/configs/*.yaml`; verify with `--dry-run` first | Bump the LR to "speed things up" — it washes out the base Luganda |
-| Add retrieval/RAG | Seam is `build_system_prompt(extra=...)` and `store.py` | Stuff a knowledge base into the system prompt |
+| Improve retrieval | `app/knowledge.py`: `LEXICON` for vocabulary gaps, `search_documents()` to change the ranker | Add a vector DB before trying keyword+glossary |
 | Add voice | Whisper-Luganda in, VITS-Luganda out (`Sunbird/asr-whisper-large-v3-salt`, `Sunbird/tts-vits-lug`) | Invent a TTS pipeline before checking those exist |
 
 ## Definition of done

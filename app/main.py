@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import store
+from . import knowledge, store
 from .config import ROOT, SETTINGS, WEB_DIR
 from .prompts import build_system_prompt
 from .providers import ProviderError, get_provider, provider_status
@@ -66,7 +66,16 @@ class SettingsRequest(BaseModel):
 # --------------------------------------------------------------------------- #
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "status": provider_status(), "stats": store.stats()}
+    return {
+        "ok": True,
+        "status": provider_status(),
+        "stats": {**store.stats(), **knowledge.stats()},
+        "learning": {
+            "mode": "retrieval+exemplars (no GPU needed)",
+            "fine_tune_ready_records": len(store.export_sft_records()),
+            "preference_pairs": len(store.export_preference_pairs()),
+        },
+    }
 
 
 @app.get("/api/settings")
@@ -125,11 +134,13 @@ async def chat(req: ChatRequest, request: Request):
     user_msg = store.add_message(conv_id, "user", req.message.strip())
     store.touch_conversation(conv_id, title=req.message.strip()[:60])
 
+    context = knowledge.build_context(req.message)
     system = build_system_prompt(
         language=req.language,
         register=req.tone,
         teach_mode=req.teach_mode,
         english_gloss=req.english_gloss,
+        memory=context["prompt_block"],
     )
     history = store.history_for_model(conv_id)  # already ends with this message
     provider = get_provider()
@@ -141,6 +152,7 @@ async def chat(req: ChatRequest, request: Request):
             {
                 "conversation_id": conv_id,
                 "user_message_id": user_msg["id"],
+                "retrieved": {"facts": len(context["documents"]), "exemplars": len(context["exemplars"])},
                 **status,
             },
         )
@@ -197,6 +209,7 @@ async def chat_sync(req: ChatRequest):
     store.add_message(conv_id, "user", req.message.strip())
     store.touch_conversation(conv_id, title=req.message.strip()[:60])
     provider = get_provider()
+    context = knowledge.build_context(req.message)
     started = time.perf_counter()
     try:
         text = await provider.complete(
@@ -206,6 +219,7 @@ async def chat_sync(req: ChatRequest):
                 register=req.tone,
                 teach_mode=req.teach_mode,
                 english_gloss=req.english_gloss,
+                memory=context["prompt_block"],
             ),
             temperature=req.temperature if req.temperature is not None else SETTINGS.temperature,
             max_tokens=SETTINGS.max_tokens,
@@ -224,6 +238,7 @@ async def chat_sync(req: ChatRequest):
         "provider": provider.name,
         "model": provider.model,
         "demo_mode": not SETTINGS.is_live,
+        "retrieved": {"facts": len(context["documents"]), "exemplars": len(context["exemplars"])},
     }
 
 
@@ -252,13 +267,28 @@ async def remove_conversation(conv_id: str):
 async def feedback(req: FeedbackRequest):
     if req.rating not in (1, -1):
         raise HTTPException(400, "rating must be 1 or -1")
-    return store.add_feedback(
+    result = store.add_feedback(
         message_id=req.message_id,
         conversation_id=req.conversation_id,
         rating=req.rating,
         corrected_text=req.corrected_text.strip(),
         note=req.note.strip(),
     )
+
+    # Immediate, weight-free learning: a good answer or a human rewrite becomes a
+    # preferred-phrasing exemplar that future similar questions retrieve.
+    message = store.get_message(req.message_id)
+    user_text = store.preceding_user_message(req.message_id)
+    learned = None
+    if message and user_text:
+        if req.corrected_text.strip():
+            learned = knowledge.add_exemplar(user_text, req.corrected_text.strip(),
+                                             conversation_id=req.conversation_id, origin="correction")
+        elif req.rating > 0:
+            learned = knowledge.add_exemplar(user_text, message["content"],
+                                             conversation_id=req.conversation_id, origin="thumbs_up")
+    result["learned"] = learned
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -278,6 +308,35 @@ async def export_download():
     if not path.exists() or result["sft_records"] == 0:
         raise HTTPException(404, "nothing to export yet — chat a little first")
     return FileResponse(path, filename="yogera_chats_sft.jsonl", media_type="application/jsonl")
+
+
+# --------------------------------------------------------------------------- #
+# Knowledge base + exemplar memory (no GPU required)
+# --------------------------------------------------------------------------- #
+class KnowledgeRequest(BaseModel):
+    title: str = Field(default="", max_length=200)
+    text: str = Field(min_length=1, max_length=200_000)
+    source: str = "operator"
+
+
+@app.post("/api/knowledge")
+async def add_knowledge(req: KnowledgeRequest):
+    return knowledge.add_document(req.title, req.text, req.source)
+
+
+@app.get("/api/knowledge")
+async def list_knowledge():
+    return {"items": knowledge.list_documents(), "stats": knowledge.stats()}
+
+
+@app.delete("/api/knowledge/{doc_id}")
+async def remove_knowledge(doc_id: str):
+    return {"deleted": knowledge.delete_document(doc_id)}
+
+
+@app.get("/api/knowledge/search")
+async def search_knowledge(q: str, k: int = 4):
+    return {"query": q, **knowledge.build_context(q, docs=k, exemplars=k)}
 
 
 # --------------------------------------------------------------------------- #

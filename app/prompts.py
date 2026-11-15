@@ -152,6 +152,13 @@ FEW_SHOTS: list[dict[str, str]] = [
     },
 ]
 
+MEMORY_NOTE = (
+    "Retrieved material for this turn. Use the FACTS only where they answer the question, "
+    "and follow the PREFERRED PHRASING where it fits. If the material does not answer the "
+    "question, ignore it completely — do not mention it, do not summarise it, and never say "
+    "you were given notes."
+)
+
 DEMO_REPLIES = {
     "greeting": (
         "Nsibye bulungi, weebale. Osiibye otya ggwe? "
@@ -171,6 +178,7 @@ def build_system_prompt(
     register: str = "auto",
     teach_mode: bool = False,
     english_gloss: bool = False,
+    memory: str = "",
     extra: str = "",
 ) -> str:
     parts = [SYSTEM_PROMPT]
@@ -187,6 +195,8 @@ def build_system_prompt(
             "For this turn the user explicitly asked for English. Answer in English, "
             "then give the Luganda version of the answer under the heading 'Mu Luganda:'."
         )
+    if memory.strip():
+        parts.append(MEMORY_NOTE + "\n" + memory.strip())
     if extra.strip():
         parts.append("Operator instructions:\n" + extra.strip())
     return "\n\n".join(parts)

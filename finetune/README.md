@@ -73,7 +73,19 @@ queue; errors block the build.
 Output: `finetune/out/{train,val,test}.jsonl` in `{"messages": [...]}` chat format — the shape both
 OpenAI fine-tuning and TRL/`SFTTrainer` expect — plus `stats.json` with vocabulary and length stats.
 
-## Step 3 — train stage 1: QLoRA SFT
+## Step 3 — train stage 1: QLoRA SFT (pick your route)
+
+You do **not** need to own a GPU. Four equally valid ways to run stage 1, compared in
+`../TRAINING-OPTIONS.md`:
+
+| Route | Command | Hardware |
+|---|---|---|
+| Hosted fine-tune (no GPU) | `python finetune/train_openai.py` | none — uploads a JSONL |
+| Free Colab / Kaggle T4 | `finetune/colab_qlora.ipynb` (uses `configs/lora_t4_8b.yaml`) | T4 16 GB |
+| Rented A100 | `python finetune/train_lora.py --config finetune/configs/lora_sunflower14b.yaml` | A100 40 GB |
+| Small model, no GPU | `train_lora.py --base-model Qwen/Qwen2.5-1.5B` | CPU, slow, weak |
+
+Everything below describes the local QLoRA route; the data pipeline is identical for all of them.
 
 ```bash
 python finetune/train_lora.py --config finetune/configs/lora_sunflower14b.yaml --dry-run  # no GPU, prints the plan

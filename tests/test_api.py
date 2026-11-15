@@ -211,3 +211,107 @@ def _dedupe(mod, rows):
         seen[k] = clean
         kept.append(clean)
     return kept, drops, dups
+
+
+# --------------------------------------------------------------------------- #
+# Learning without a GPU: knowledge base + exemplar memory
+# --------------------------------------------------------------------------- #
+def test_knowledge_document_is_retrieved_across_languages(client):
+    r = client.post("/api/knowledge", json={
+        "title": "Yogera Coffee prices",
+        "text": "A 500g bag of coffee costs 18,000 UGX. Delivery in Kampala takes one day and costs 5,000 UGX.",
+    })
+    assert r.status_code == 200
+    assert r.json()["chunks"] >= 1
+
+    # A Luganda question must reach the English document via the glossary bridge
+    s = client.get("/api/knowledge/search", params={"q": "ssente mmeka ku mmwanyi?"}).json()
+    titles = [d["title"] for d in s["documents"]]
+    assert "Yogera Coffee prices" in titles
+    assert s["chars"] > 0
+
+
+def test_knowledge_search_ignores_unrelated_questions(client):
+    s = client.get("/api/knowledge/search", params={"q": "obudde bwa leero bwe buti?"}).json()
+    titles = [d["title"] for d in s["documents"]]
+    assert "Yogera Coffee prices" not in titles
+
+
+def test_document_delete(client):
+    doc = client.post("/api/knowledge", json={"title": "Temp", "text": "This should vanish."}).json()
+    assert client.delete(f"/api/knowledge/{doc['id']}").json()["deleted"] is True
+    s = client.get("/api/knowledge/search", params={"q": "vanish"}).json()
+    assert all(d["doc_id"] != doc["id"] for d in s["documents"])
+
+
+def test_thumbs_up_becomes_an_exemplar(client):
+    conv = client.post("/api/chat/sync", json={"message": "Weebale nnyo mukwano."}).json()
+    r = client.post("/api/feedback", json={
+        "message_id": conv["message_id"], "conversation_id": conv["conversation_id"], "rating": 1,
+    })
+    assert r.status_code == 200
+    assert r.json()["learned"] is not None
+    found = client.get("/api/knowledge/search", params={"q": "Weebale nnyo mukwano."}).json()
+    assert found["exemplars"], "a thumbs-up answer should be retrievable as preferred phrasing"
+
+
+def test_correction_becomes_an_exemplar_with_the_human_wording(client):
+    conv = client.post("/api/chat/sync", json={"message": "Wasuze otya ssebo?"}).json()
+    fixed = "Twasuze bulungi, weebale nnyo."
+    client.post("/api/feedback", json={
+        "message_id": conv["message_id"], "conversation_id": conv["conversation_id"],
+        "rating": -1, "corrected_text": fixed,
+    })
+    found = client.get("/api/knowledge/search", params={"q": "Wasuze otya ssebo?"}).json()
+    assert any(ex["assistant"] == fixed for ex in found["exemplars"])
+
+
+def test_memory_reaches_the_system_prompt():
+    from app import knowledge  # noqa: PLC0415
+    from app.prompts import build_system_prompt  # noqa: PLC0415
+
+    knowledge.add_document("Delivery", "Okutuuka mu Kampala kimala lunaku lumu. Delivery in Kampala takes one day.")
+    ctx = knowledge.build_context("okutuuka mu Kampala kye kiseera ki?")
+    prompt = build_system_prompt(memory=ctx["prompt_block"])
+    assert "FACTS you may rely on" in prompt
+    assert "Retrieved material for this turn" in prompt
+    assert "Delivery" in prompt
+
+
+def test_health_reports_learning_mode(client):
+    body = client.get("/api/health").json()
+    assert body["learning"]["mode"].startswith("retrieval+exemplars")
+    assert "fine_tune_ready_records" in body["learning"]
+    assert "documents" in body["stats"]
+
+
+# --------------------------------------------------------------------------- #
+# No-GPU fine-tuning path
+# --------------------------------------------------------------------------- #
+def test_openai_finetune_validator_accepts_the_built_dataset(tmp_path):
+    sys.path.insert(0, str(ROOT / "finetune"))
+    import train_openai  # noqa: PLC0415
+
+    good = tmp_path / "good.jsonl"
+    good.write_text("\n".join(
+        json.dumps({"messages": [{"role": "user", "content": "Oli otya?"},
+                                 {"role": "assistant", "content": "Gyendi, weebale."}]})
+        for _ in range(3)
+    ), encoding="utf-8")
+    problems = train_openai.validate(good, minimum=1)
+    assert problems == []
+
+
+def test_openai_finetune_validator_catches_system_first_and_short(tmp_path):
+    sys.path.insert(0, str(ROOT / "finetune"))
+    import train_openai  # noqa: PLC0415
+
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text(json.dumps({"messages": [
+        {"role": "system", "content": "be nice"},
+        {"role": "user", "content": "Oli otya?"},
+    ]}) + "\n", encoding="utf-8")
+    problems = train_openai.validate(bad, minimum=100)
+    assert any("system message" in p for p in problems)
+    assert any("assistant message" in p for p in problems)
+    assert any("only 1 examples" in p for p in problems)

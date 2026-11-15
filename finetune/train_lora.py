@@ -119,6 +119,7 @@ def dry_run(cfg: dict) -> int:
     total_steps = int(steps_per_epoch * epochs)
     plan = {
         "base_model": model,
+        "precision": ("bf16" if tr.get("bf16", True) else "fp16" if tr.get("fp16", False) else "fp32"),
         "dataset": {"train": str(train_path), "val": str(val_path), "train_rows": n_train, "val_rows": n_val},
         "corpus": {"words": words, "tokens_estimate": tokens_est, "max_seq_len": seq},
         "schedule": {
@@ -272,6 +273,7 @@ def train(cfg: dict, dry: bool = False) -> int:
         eval_strategy="steps",
         eval_steps=int(tr.get("eval_steps", 100)),
         bf16=bool(tr.get("bf16", True)),
+        fp16=bool(tr.get("fp16", False)),
         gradient_checkpointing=True,
         optim="paged_adamw_8bit",
         report_to=[],

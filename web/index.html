@@ -233,7 +233,15 @@
   <div class="body">
     <div class="stats" id="stats"></div>
     <p class="note">Every thumbs-up is a good answer; every thumbs-down with a correction becomes a preference pair. Export turns this chat history into training files for <code>finetune/build_dataset.py</code>.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+    <hr class="sep" />
+    <p class="note"><b>Okujjukira — memory without training</b><br>
+      Paste a fact here (prices, hours, policies, how you greet customers) and the bot will use it
+      from the next reply onwards. Good answers 👍 and your own rewrites 👎 are remembered the same way.</p>
+    <div class="field"><input id="kb-title" placeholder="Title, e.g. Yogera Coffee — prices" /></div>
+    <div class="field"><textarea id="kb-text" rows="4" placeholder="A 500g bag costs 18,000 UGX. Delivery in Kampala is 5,000 UGX, one day." style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;resize:vertical"></textarea></div>
+    <button class="btn" id="kb-add">Remember this</button>
+    <hr class="sep" />
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="export-btn">Export training data</button>
       <a class="btn ghost" href="/api/export/download" style="text-decoration:none">Download .jsonl</a>
     </div>
@@ -341,10 +349,10 @@
   function renderStats(s) {
     if (!s) return;
     const items = [
-      [s.conversations, "conversations"],
-      [s.messages, "messages"],
+      [s.documents ?? 0, "documents in memory"],
+      [s.exemplars ?? 0, "learned phrasings"],
       [s.thumbs_up, "good answers"],
-      [s.corrections, "corrections"],
+      [s.corrections ?? 0, "corrections"],
     ];
     $("#stats").innerHTML = items
       .map(([v, k]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
@@ -432,7 +440,7 @@
     let acc = "";
     let messageId = null;
     let firstToken = true;
-    let pendingGloss = "";
+    let retrieved = null;
 
     try {
       const resp = await fetch("/api/chat", {
@@ -469,6 +477,7 @@
           if (ev === "meta") {
             state.conversationId = data.conversation_id;
             if (data.demo_mode) state.demo = true;
+            if (data.retrieved) retrieved = data.retrieved;
           } else if (ev === "delta") {
             if (firstToken) { bubble.textContent = ""; firstToken = false; }
             acc += data.text;
@@ -486,7 +495,9 @@
       }
       if (!acc) bubble.textContent = "Nkusaba ondinde — tewali ddoboozi lyazze. Kebera API key oba internet.";
       const wrap = bubble.parentElement;
-      wrap.querySelector(".meta-row span").textContent = state.demo ? "demo · no key" : "";
+      const used = retrieved ? (retrieved.facts || 0) + (retrieved.exemplars || 0) : 0;
+      wrap.querySelector(".meta-row span").textContent =
+        (state.demo ? "demo · no key" : "") + (used ? (state.demo ? " · " : "") + `remembered ${used}` : "");
       wrap.querySelectorAll(".meta-row button").forEach((b) => { b.dataset.messageId = messageId; });
       const downBtn = wrap.querySelectorAll(".meta-row button")[1];
       downBtn.onclick = () => {
@@ -570,6 +581,23 @@
       toast(state.live ? "Kale! Kati tuli live." : "Kyawereddwa — naye tewali key, tuli mu demo.");
       close("settings-drawer");
     } catch (e) { toast("Tekisobodde"); }
+  };
+
+  $("#kb-add").onclick = async () => {
+    const text = $("#kb-text").value.trim();
+    if (!text) { toast("Wandiika ekintu ku kubanga"); return; }
+    try {
+      const r = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: $("#kb-title").value, text }),
+      });
+      const d = await r.json();
+      $("#kb-text").value = "";
+      $("#kb-title").value = "";
+      toast(`Kijjukiddwa (${d.chunks || 1} chunk${d.chunks === 1 ? "" : "s"}) — ${d.title}`);
+      refreshStatus();
+    } catch (e) { toast("Tekisobodde kukijjukira"); }
   };
 
   $("#export-btn").onclick = async () => {
