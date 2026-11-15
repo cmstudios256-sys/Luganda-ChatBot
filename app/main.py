@@ -324,6 +324,21 @@ async def add_knowledge(req: KnowledgeRequest):
     return knowledge.add_document(req.title, req.text, req.source)
 
 
+class BulkKnowledgeRequest(BaseModel):
+    documents: list[KnowledgeRequest] = Field(min_length=1, max_length=1000)
+
+
+@app.post("/api/knowledge/bulk")
+async def add_knowledge_bulk(req: BulkKnowledgeRequest):
+    """Bulk load for corpus/build_corpus.py --push-to-app (books, newspapers, transcripts)."""
+    added = chunks = 0
+    for doc in req.documents:
+        result = knowledge.add_document(doc.title, doc.text, doc.source)
+        added += 1
+        chunks += result["chunks"]
+    return {"added": added, "chunks_added": chunks, "corpus": knowledge.stats()}
+
+
 @app.get("/api/knowledge")
 async def list_knowledge():
     return {"items": knowledge.list_documents(), "stats": knowledge.stats()}

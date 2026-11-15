@@ -86,6 +86,24 @@ curl "localhost:8000/api/knowledge/search?q=ssente%20mmeka"
 
 Full comparison, honest costs and limits: **`TRAINING-OPTIONS.md`**.
 
+## Teaching it from books, newspapers, TV and TikTok
+
+`corpus/` turns the sources you actually have into language: PDFs/DOCX/EPUB textbooks and
+handbooks, newspaper pages, subtitles, TikTok/TV audio (via Luganda ASR), and web pages.
+
+```bash
+python -m corpus.ingest_files books/ handbooks/ newspapers/ tv/ --out files
+python -m corpus.ingest_web --check-robots https://example.ug/news/123   # robots.txt is obeyed
+python -m corpus.ingest_media --transcript shows/ep1.srt --kind tv --out media
+python -m corpus.build_corpus --push-to-app http://localhost:8000        # grounds the bot now
+```
+
+It is not one pipeline but two outcomes from one corpus — **retrieval** (facts: newspapers,
+handbooks, prices — instant, $0) and **training** (style, register, grammar — slow, GPU). The
+split, the per-source trade-offs, OCR for scanned textbooks, ASR for TV, and what each source is
+legally worth are all in **`CORPUS-PLAN.md`**. Nothing is trusted until a native speaker flips
+`verified: true`.
+
 ## Why it sounds native (and where it still doesn't)
 
 The quality of a low-resource-language chatbot is mostly prompt and data engineering, so
@@ -161,7 +179,9 @@ yogera/
 ├─ web/          single-file chat UI (no CDN, no build step)
 ├─ finetune/     ingest · validate · build · train_lora · train_dpo · train_openai · eval
 │               + colab_qlora.ipynb (free T4) + its own README
+├─ corpus/       books · newspapers · TV/TikTok → langid → dedupe → retrieval + CPT text
 ├─ TRAINING-OPTIONS.md   six ways to train, ranked by cost — two need no GPU
+├─ CORPUS-PLAN.md       what each source (textbook/newspaper/TV/TikTok/web) is really worth
 ├─ AGENTS.md     brief for whatever coding agent opens this repo next
 ├─ tests/
 ├─ .env.example  five provider recipes
@@ -173,6 +193,12 @@ yogera/
 - **Luganda is low-resource.** A frontier model with a good prompt is fluent-ish but still makes
   agreement errors; a small fine-tune on 1,000 rows will be *worse*, not better. The pipeline here
   is designed to grow into a real dataset, not to pretend 26 seed rows are one.
+- **The corpus is only as good as its review.** Every ingest tags `verified: false`; the language
+  filter catches English/Swahili and code-mixing, but it cannot tell good Luganda from mediocre
+  Luganda. That is a human job, and it is the bottleneck.
+- **Closely related languages sneak through.** The filter rejects Swahili, but Runyankole/Lusoga
+  share enough morphology with Luganda to pass. If you scrape multilingual Ugandan sites, use a
+  trained classifier (`corpus/langid.py:classify_trained`).
 - **Retrieval is keyword-based, not semantic.** FTS5 + a glossary handles Luganda/English keyword
   overlap, not paraphrase. If users ask things in many different ways, add embeddings later —
   `app/knowledge.py:search_documents` is the one function to swap.

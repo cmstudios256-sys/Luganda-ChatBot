@@ -33,5 +33,17 @@ cloud-train:    ## hosted fine-tune: uploads + starts the job (needs OPENAI_API_
 notebook:       ## open the free-T4 Colab notebook path
 	@echo "Upload the repo, or run: jupyter lab finetune/colab_qlora.ipynb"
 
+corpus-files:   ## books/handbooks/newspapers in ./books ./handbooks ./newspapers ./tv
+	python3 -m corpus.ingest_files books/ handbooks/ newspapers/ tv/ --out files
+
+corpus-web:     ## check one URL against robots.txt before crawling
+	@read -p "URL to check: " u; python3 -m corpus.ingest_web --check-robots "$$u"
+
+corpus-build:   ## merge + dedupe + report
+	python3 -m corpus.build_corpus
+
+corpus-load:    ## push the corpus into the running app's memory
+	python3 -m corpus.build_corpus --push-to-app http://localhost:8000
+
 clean:
 	rm -rf finetune/out/*.jsonl finetune/out/eval_report.json finetune/out/human_rubric.csv

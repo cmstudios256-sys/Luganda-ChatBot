@@ -22,6 +22,10 @@ are language regressions, and they pass every test unless you keep the rules bel
   embeddings starts and ends in `search_documents()`.
 - `web/index.html` — single file UI, inline CSS/JS, no build step, no CDN, no external
   fonts. Keep it that way (the preview iframe has no network access).
+- `corpus/` — ingest books/newspapers/TV/TikTok/web into Luganda text: `langid.py`
+  (Luganda vs English vs Swahili vs code-mixed), `text_extract.py` (PDF/DOCX/EPUB/HTML/SRT),
+  `ingest_files.py` / `ingest_web.py` / `ingest_media.py`, `build_corpus.py` (boilerplate
+  stripping, dedupe, retrieval docs, CPT text). Strategy: `../CORPUS-PLAN.md`.
 - `finetune/` — offline data + training pipeline. Its own README explains the sequence
   and the per-dataset licences. `--dry-run` works with no GPU; real training does not.
 
@@ -60,7 +64,10 @@ leak into datasets or screenshots presented as real model output.
 6. **Offline-first tests.** No test may require a network or an API key. Provider
    behaviour is tested through the mock or a local fake server.
 7. **UI has no external dependencies.** Inline everything; no fonts, CDNs or images by URL.
-8. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
+8. **Corpus discipline.** `corpus/ingest_web.py` must keep obeying robots.txt (never add a
+   bypass flag); ASR transcripts stay `modality: spoken` + `verified: false` and must never enter
+   `cpt/train.txt`; every ingested record stays `verified: false` until a human signs it off.
+9. **Memory is not training.** 👍/👎/corrections must keep feeding `knowledge.add_exemplar`,
    and every reply must still be generated from the same prompt+schema. Do not silently
    switch the product to "the fine-tune" — `TRAINING-OPTIONS.md` explains which route is
    active and why.
