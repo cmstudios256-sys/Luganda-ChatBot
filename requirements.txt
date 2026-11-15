@@ -1,0 +1,18 @@
+# --- web app (all you need to run the chatbot) ---
+fastapi>=0.110
+uvicorn[standard]>=0.27
+httpx>=0.27
+pydantic>=2.6
+
+# --- optional: pull corpora from the Hub (finetune/ingest_hf.py) ---
+# pyarrow>=15          # parquet transport
+# pyyaml>=6            # nicer config parsing for train_lora.py
+
+# --- fine-tuning (install on the GPU box, not on your laptop) ---
+# torch>=2.3
+# transformers>=4.44
+# peft>=0.11
+# trl>=0.9
+# datasets>=2.19
+# accelerate>=0.30
+# bitsandbytes>=0.43

@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+data/*.db
+data/*.db-wal
+data/*.db-shm
+finetune/out/*.jsonl
+finetune/out/*.json
+finetune/out/*.txt
+finetune/out/*.csv
+finetune/out/*/
+finetune/data/ingested/
+finetune/data/exported/
+.DS_Store

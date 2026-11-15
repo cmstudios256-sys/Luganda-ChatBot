@@ -1,0 +1,46 @@
+# Yogera — QLoRA SFT for Luganda chat on Qwen3-8B (cheap single-GPU baseline).
+# Use this when you do not have the VRAM for Sunflower-14B. It knows far less
+# Luganda, so expect to need several thousand clean rows and more epochs, and
+# expect weaker fluency even then. Same recipe, smaller engine.
+base_model: Qwen/Qwen3-8B
+output_dir: finetune/out/yogera-qwen3-8b-lora
+
+data:
+  train: out/train.jsonl
+  val: out/val.jsonl
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+training:
+  epochs: 3
+  batch_size: 2
+  grad_accum: 8
+  lr: 0.0001
+  lr_scheduler: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  max_seq_len: 2048
+  train_on_responses_only: true
+  bf16: true
+  logging_steps: 10
+  save_steps: 200
+  eval_steps: 100
+  seed: 42
+
+merge_and_export: true
+merge_output_dir: finetune/out/yogera-qwen3-8b-merged
+
+hub:
+  push_to_hub: false
+  repo_id: your-org/yogera-luganda-lora
+  private: true

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="lg">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Yogera — Oluganda AI</title>
+<style>
+  :root {
+    --bg: #0d0f0c;
+    --panel: #141814;
+    --panel-2: #1b201b;
+    --line: #2a312a;
+    --ink: #edf1e8;
+    --muted: #98a394;
+    --yellow: #f5c542;
+    --red: #d94b3d;
+    --green: #57b894;
+    --radius: 16px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 15% -10%, #20281c 0%, transparent 60%),
+      radial-gradient(900px 500px at 95% 0%, #241f14 0%, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 1180px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+    background: rgba(13,15,12,.72); backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .mark {
+    width: 38px; height: 38px; border-radius: 11px; flex: none;
+    background: linear-gradient(160deg, var(--yellow), #e8a020);
+    display: grid; place-items: center; color: #1b1400; font-weight: 800; font-size: 17px;
+    box-shadow: 0 4px 18px rgba(245,197,66,.22);
+  }
+  .brand h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
+  .brand p { margin: 1px 0 0; font-size: 11.5px; color: var(--muted); }
+  .spacer { flex: 1; }
+  .pill {
+    font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted);
+    background: var(--panel); white-space: nowrap;
+  }
+  .pill.live { color: #0f1a12; background: var(--green); border-color: transparent; }
+  .pill.demo { color: #2a1c00; background: var(--yellow); border-color: transparent; }
+  .icon-btn {
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 15px;
+    display: grid; place-items: center;
+  }
+  .icon-btn:hover { border-color: #3c463c; }
+
+  .scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+  .thread { padding: 22px 18px 8px; display: flex; flex-direction: column; gap: 16px; max-width: 820px; margin: 0 auto; }
+
+  .msg { display: flex; gap: 10px; align-items: flex-start; animation: rise .25s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  .msg.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
+    font-size: 12px; font-weight: 800; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  }
+  .msg.user .avatar { background: #2a3327; color: #cfe0c2; }
+  .bubble-wrap { max-width: 78%; }
+  .bubble {
+    padding: 11px 14px; border-radius: 14px; line-height: 1.62; font-size: 15px;
+    background: var(--panel); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .msg.user .bubble { background: #23301f; border-color: #33452c; border-bottom-right-radius: 4px; }
+  .msg.bot .bubble { border-bottom-left-radius: 4px; }
+  .bubble .en-gloss { display:block; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); color: var(--muted); font-size: 13px; }
+  .meta-row { display: flex; gap: 10px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .meta-row button {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 6px;
+  }
+  .meta-row button:hover { color: var(--ink); background: var(--panel-2); }
+  .meta-row button.on { color: var(--yellow); }
+  .typing span {
+    display: inline-block; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%;
+    background: var(--muted); animation: blink 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,60%,100% { opacity: .25; } 30% { opacity: 1; } }
+
+  .correction { margin-top: 8px; display: none; flex-direction: column; gap: 6px; }
+  .correction.open { display: flex; }
+  .correction textarea {
+    width: 100%; min-height: 62px; resize: vertical; background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 14px;
+  }
+  .correction .row { display: flex; gap: 8px; }
+  .btn {
+    background: var(--yellow); color: #1b1400; border: none; padding: 8px 13px; border-radius: 9px;
+    font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .btn.ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+
+  /* composer */
+  .composer { border-top: 1px solid var(--line); background: rgba(13,15,12,.9); padding: 12px 18px 16px; }
+  .composer-inner { max-width: 820px; margin: 0 auto; }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+  .chip {
+    font-size: 11.5px; padding: 5px 10px; border-radius: 999px; cursor: pointer; user-select: none;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  }
+  .chip.on { background: #2b3327; border-color: #45573c; color: #dbe9cf; }
+  .input-row {
+    display: flex; gap: 9px; align-items: flex-end; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 9px 9px 13px;
+  }
+  .input-row:focus-within { border-color: #4a5a41; }
+  textarea#prompt {
+    flex: 1; border: none; outline: none; background: transparent; color: var(--ink);
+    font: inherit; font-size: 15px; line-height: 1.5; resize: none; max-height: 150px; padding: 6px 0;
+  }
+  #send {
+    width: 38px; height: 38px; border-radius: 11px; border: none; cursor: pointer; flex: none;
+    background: var(--yellow); color: #1b1400; font-size: 16px; display: grid; place-items: center;
+  }
+  #send:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 11px; color: var(--muted); margin: 8px 4px 0; display: flex; justify-content: space-between; gap: 10px; }
+
+  /* drawers */
+  .drawer {
+    position: fixed; inset: 0 0 0 auto; width: min(420px, 100%); background: var(--panel);
+    border-left: 1px solid var(--line); transform: translateX(102%); transition: transform .25s ease;
+    z-index: 40; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: none; box-shadow: -30px 0 60px rgba(0,0,0,.5); }
+  .drawer header { border-bottom: 1px solid var(--line); }
+  .drawer .body { padding: 16px 18px 28px; overflow-y: auto; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 14px;
+  }
+  .note { font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 6px 0 14px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 19px; }
+  .stat span { font-size: 11px; color: var(--muted); }
+  hr.sep { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px); opacity: 0;
+    background: #eef3e6; color: #14180f; padding: 9px 16px; border-radius: 999px; font-size: 13px;
+    font-weight: 600; transition: .2s ease; z-index: 60; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .empty { text-align: center; padding: 46px 20px 20px; color: var(--muted); }
+  .empty h2 { color: var(--ink); font-size: 20px; margin: 0 0 8px; }
+  .empty p { margin: 0 auto 18px; font-size: 13.5px; line-height: 1.6; max-width: 420px; }
+  .starter {
+    display: inline-block; margin: 4px; padding: 8px 12px; border-radius: 11px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-size: 13px;
+  }
+  .starter:hover { border-color: #45573c; }
+  @media (max-width: 620px) {
+    .bubble-wrap { max-width: 88%; }
+    .thread { padding: 16px 12px 4px; }
+    .composer { padding: 10px 12px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="mark">Y</div>
+    <div class="brand">
+      <h1>Yogera</h1>
+      <p>Ayogera Oluganda nga Muganda ddala</p>
+    </div>
+    <div class="spacer"></div>
+    <span id="status-pill" class="pill">…</span>
+    <button class="icon-btn" id="open-learn" title="Okwegeranya / learning"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-6M22 19H2"/></svg></button>
+    <button class="icon-btn" id="open-settings" title="Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></button>
+  </header>
+
+  <div class="scroll" id="scroll">
+    <div class="thread" id="thread">
+      <div class="empty" id="empty">
+        <h2>Oli otya! Nze Yogera.</h2>
+        <p>Nsobola okwogera naawe mu Luganda ku bintu byonna — amakuru, ebyafaayo, obulimi, oba kuyiga olulimi luno. Wandira kunsaba ekintu kyonna.</p>
+        <div>
+          <span class="starter">Osiibye otya nno?</span>
+          <span class="starter">Nnyonnyola ku matooke mu Buganda</span>
+          <span class="starter">Yiga oluganda: njigiriza ebigambo bya buli lunaku</span>
+          <span class="starter">Translate to Luganda: "I am going to the market"</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <div class="composer-inner">
+      <div class="chips">
+        <span class="chip on" data-toggle="language" data-values="lug,en" data-idx="0">Oluganda</span>
+        <span class="chip" data-toggle="tone" data-values="auto,peer,respect" data-idx="0">Straight tone</span>
+        <span class="chip" data-toggle="teach_mode">Teach me</span>
+        <span class="chip" data-toggle="english_gloss">English gloss</span>
+      </div>
+      <div class="input-row">
+        <textarea id="prompt" rows="1" placeholder="Wandiika obubaka bwo wano…  (Enter = okusindika)"></textarea>
+        <button id="send" title="Send">➤</button>
+      </div>
+      <div class="hint">
+        <span id="model-hint">—</span>
+        <span>Oluganda luno lulina okukeberebwa omuzaaliranwa.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Learning drawer -->
+<div class="drawer" id="learn-drawer">
+  <header>
+    <div class="mark" style="width:30px;height:30px;font-size:13px;color:#1b1400"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-6M22 19H2"/></svg></div>
+    <div class="brand"><h1 style="font-size:15px">Okwegeranya</h1><p>Learning &amp; fine-tune data</p></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" data-close="learn-drawer">✕</button>
+  </header>
+  <div class="body">
+    <div class="stats" id="stats"></div>
+    <p class="note">Every thumbs-up is a good answer; every thumbs-down with a correction becomes a preference pair. Export turns this chat history into training files for <code>finetune/build_dataset.py</code>.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn" id="export-btn">Export training data</button>
+      <a class="btn ghost" href="/api/export/download" style="text-decoration:none">Download .jsonl</a>
+    </div>
+    <hr class="sep" />
+    <p class="note"><b>How the loop works</b><br>
+      1. Chat normally — natives correct answers with 👎 + rewrite.<br>
+      2. Export → <code>finetune/data/exported/*.jsonl</code>.<br>
+      3. <code>python finetune/build_dataset.py</code> merges it with the seed set and a Luganda corpus, dedupes and splits.<br>
+      4. <code>python finetune/train_lora.py --config finetune/configs/lora_sunflower14b.yaml</code> trains an adapter.<br>
+      5. <code>python finetune/eval.py</code> scores chrF + a native-speaker rubric.</p>
+  </div>
+</div>
+
+<!-- Settings drawer -->
+<div class="drawer" id="settings-drawer">
+  <header>
+    <div class="mark" style="width:30px;height:30px;font-size:13px;color:#1b1400"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></div>
+    <div class="brand"><h1 style="font-size:15px">Entegeka</h1><p>Model provider</p></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" data-close="settings-drawer">✕</button>
+  </header>
+  <div class="body">
+    <div class="field">
+      <label>Provider</label>
+      <select id="f-provider">
+        <option value="auto">auto (detect from .env)</option>
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="compatible">OpenAI-compatible (vLLM / Ollama / Sunflower)</option>
+        <option value="mock">offline demo (no key)</option>
+      </select>
+    </div>
+    <div class="field"><label>Model</label><input id="f-model" placeholder="gpt-4.1-mini / claude-sonnet-4-5 / Sunbird/Sunflower-14B" /></div>
+    <div class="field"><label>API key <span style="color:#6f7a6b">(kept in memory only)</span></label>
+      <input id="f-key" type="password" placeholder="sk-… / AIza… / sk-ant-…" autocomplete="off" /></div>
+    <div class="field"><label>Base URL <span style="color:#6f7a6b">(optional — vLLM, Ollama, OpenRouter)</span></label>
+      <input id="f-base" placeholder="http://localhost:8000/v1" /></div>
+    <div class="field"><label>Temperature <span id="temp-val">0.60</span></label>
+      <input id="f-temp" type="range" min="0" max="1.2" step="0.05" value="0.6" /></div>
+    <button class="btn" id="save-settings">Save &amp; test</button>
+    <hr class="sep" />
+    <p class="note">For permanence put keys in <code>.env</code> at the project root (see <code>.env.example</code>). Serving Sunflower locally? Run vLLM with an OpenAI-compatible server and point Base URL at it — no data leaves your machine.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const state = {
+    conversationId: null,
+    language: "lug",
+    tone: "auto",
+    teach_mode: false,
+    english_gloss: false,
+    busy: false,
+    live: false,
+    demo: false,
+  };
+  const $ = (sel) => document.querySelector(sel);
+  const thread = $("#thread");
+  const scroll = $("#scroll");
+  const promptEl = $("#prompt");
+  const sendBtn = $("#send");
+
+  const toast = (msg) => {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove("show"), 2400);
+  };
+
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+
+  const scrollBottom = () => { scroll.scrollTop = scroll.scrollHeight; };
+
+  const atBottom = () => scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 120;
+
+  /* ---------------- status ---------------- */
+  async function refreshStatus() {
+    try {
+      const r = await fetch("/api/health");
+      const d = await r.json();
+      state.live = d.status.live;
+      state.demo = d.status.demo_mode;
+      const pill = $("#status-pill");
+      pill.textContent = state.live ? "live · " + d.status.provider : "demo mode";
+      pill.className = "pill " + (state.live ? "live" : "demo");
+      $("#model-hint").textContent = d.status.model + (state.demo ? " · no key configured" : "");
+      $("#f-provider").value = d.status.provider === "mock" ? "mock" : d.status.provider;
+      $("#f-model").value = d.status.model || "";
+      renderStats(d.stats);
+    } catch (e) {
+      $("#status-pill").textContent = "offline";
+    }
+  }
+
+  function renderStats(s) {
+    if (!s) return;
+    const items = [
+      [s.conversations, "conversations"],
+      [s.messages, "messages"],
+      [s.thumbs_up, "good answers"],
+      [s.corrections, "corrections"],
+    ];
+    $("#stats").innerHTML = items
+      .map(([v, k]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+      .join("");
+  }
+
+  /* ---------------- message rendering ---------------- */
+  function addMessage(role, text, opts = {}) {
+    $("#empty")?.remove();
+    const msg = el("div", "msg " + (role === "user" ? "user" : "bot"));
+    const av = el("div", "avatar", role === "user" ? "GG" : "Y");
+    const wrap = el("div", "bubble-wrap");
+    const bubble = el("div", "bubble", text || "");
+    wrap.appendChild(bubble);
+
+    if (role === "assistant") {
+      const meta = el("div", "meta-row");
+      const up = el("button", "", "👍");
+      const down = el("button", "", "👎");
+      up.title = "Kino kirungi";
+      down.title = "Kino tekirungi — nkuwe ekyo ekituufu";
+      const stamp = el("span", "", opts.demo ? "demo" : (opts.model || ""));
+      meta.append(up, down, stamp);
+
+      const corr = el("div", "correction");
+      const ta = el("textarea");
+      ta.placeholder = "Wandiika ekyo ekituufu mu Luganda…  (your correction becomes training data)";
+      const row = el("div", "row");
+      const save = el("button", "btn", "Send correction");
+      const cancel = el("button", "btn ghost", "Cancel");
+      row.append(save, cancel);
+      corr.append(ta, row);
+      wrap.append(meta, corr);
+
+      up.onclick = () => sendFeedback(opts.messageId, 1, "", up, down);
+      down.onclick = () => {
+        corr.classList.toggle("open");
+        if (corr.classList.contains("open")) ta.focus();
+        down.classList.add("on");
+      };
+      cancel.onclick = () => { corr.classList.remove("open"); down.classList.remove("on"); };
+      save.onclick = () => {
+        sendFeedback(opts.messageId, -1, ta.value, up, down);
+        corr.classList.remove("open");
+        toast("Weebale! Ekisonyiwo kikozeseddwa mu kuyiga.");
+      };
+    }
+
+    msg.append(av, wrap);
+    thread.appendChild(msg);
+    scrollBottom();
+    return { bubble, msg };
+  }
+
+  async function sendFeedback(messageId, rating, correctedText, up, down) {
+    if (!messageId || !state.conversationId) return;
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId,
+          conversation_id: state.conversationId,
+          rating,
+          corrected_text: correctedText || "",
+        }),
+      });
+      if (rating > 0) { up.classList.add("on"); down.classList.remove("on"); toast("Weebale nnyo!"); }
+      refreshStatus();
+    } catch (e) { toast("Tekisobodde kukutuuka ku server"); }
+  }
+
+  /* ---------------- send + stream ---------------- */
+  async function send(textOverride) {
+    const text = (textOverride ?? promptEl.value).trim();
+    if (!text || state.busy) return;
+    state.busy = true;
+    sendBtn.disabled = true;
+    promptEl.value = "";
+    promptEl.style.height = "auto";
+    addMessage("user", text);
+
+    const { bubble } = addMessage("assistant", "");
+    bubble.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+    let acc = "";
+    let messageId = null;
+    let firstToken = true;
+    let pendingGloss = "";
+
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({
+          message: text,
+          conversation_id: state.conversationId,
+          language: state.language,
+          tone: state.tone,
+          teach_mode: state.teach_mode,
+          english_gloss: state.english_gloss,
+        }),
+      });
+      if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const raw = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const evLine = raw.split("\n").find((l) => l.startsWith("event:"));
+          const dataLine = raw.split("\n").find((l) => l.startsWith("data:"));
+          if (!evLine || !dataLine) continue;
+          const ev = evLine.slice(6).trim();
+          let data = {};
+          try { data = JSON.parse(dataLine.slice(5).trim()); } catch (e) {}
+          if (ev === "meta") {
+            state.conversationId = data.conversation_id;
+            if (data.demo_mode) state.demo = true;
+          } else if (ev === "delta") {
+            if (firstToken) { bubble.textContent = ""; firstToken = false; }
+            acc += data.text;
+            bubble.textContent = acc;
+            if (atBottom()) scrollBottom();
+          } else if (ev === "error") {
+            bubble.textContent = acc || "Nkusaba ondinde — waaliwo obuzibu. Kebera API key oba internet.";
+            toast(data.message ? String(data.message).slice(0, 120) : "Provider error");
+          } else if (ev === "done") {
+            messageId = data.message && data.message.id;
+            acc = (data.message && data.message.content) || acc;
+            bubble.textContent = acc;
+          }
+        }
+      }
+      if (!acc) bubble.textContent = "Nkusaba ondinde — tewali ddoboozi lyazze. Kebera API key oba internet.";
+      const wrap = bubble.parentElement;
+      wrap.querySelector(".meta-row span").textContent = state.demo ? "demo · no key" : "";
+      wrap.querySelectorAll(".meta-row button").forEach((b) => { b.dataset.messageId = messageId; });
+      const downBtn = wrap.querySelectorAll(".meta-row button")[1];
+      downBtn.onclick = () => {
+        const corr = wrap.querySelector(".correction");
+        corr.classList.toggle("open");
+        if (corr.classList.contains("open")) corr.querySelector("textarea").focus();
+      };
+      const saveBtn = wrap.querySelector(".correction .btn");
+      saveBtn.onclick = () => {
+        const ta = wrap.querySelector(".correction textarea");
+        sendFeedback(messageId, -1, ta.value, wrap.querySelectorAll(".meta-row button")[0], downBtn);
+        wrap.querySelector(".correction").classList.remove("open");
+        toast("Weebale! Ekisonyiwo kikozeseddwa mu kuyiga.");
+      };
+      wrap.querySelectorAll(".meta-row button")[0].onclick = () =>
+        sendFeedback(messageId, 1, "", wrap.querySelectorAll(".meta-row button")[0], downBtn);
+    } catch (e) {
+      bubble.textContent = "Nkusaba ondinde — waaliwo obuzibu mu kutuuka ku server. (" + e.message + ")";
+    } finally {
+      state.busy = false;
+      sendBtn.disabled = false;
+      refreshStatus();
+    }
+  }
+
+  /* ---------------- UI wiring ---------------- */
+  sendBtn.onclick = () => send();
+  promptEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  promptEl.addEventListener("input", () => {
+    promptEl.style.height = "auto";
+    promptEl.style.height = Math.min(promptEl.scrollHeight, 150) + "px";
+  });
+
+  document.querySelectorAll(".starter").forEach((s) => (s.onclick = () => send(s.textContent)));
+
+  document.querySelectorAll(".chip[data-toggle]").forEach((chip) => {
+    chip.onclick = () => {
+      const key = chip.dataset.toggle;
+      if (chip.dataset.values) {
+        const values = chip.dataset.values.split(",");
+        const labels = { language: ["Oluganda", "English"], tone: ["Straight tone", "Peer", "Respectful"] }[key];
+        let idx = (parseInt(chip.dataset.idx || "0", 10) + 1) % values.length;
+        chip.dataset.idx = idx;
+        chip.textContent = labels[idx];
+        state[key] = values[idx];
+        chip.classList.toggle("on", true);
+      } else {
+        state[key] = !state[key];
+        chip.classList.toggle("on", state[key]);
+      }
+    };
+  });
+
+  const open = (id) => $("#" + id).classList.add("open");
+  const close = (id) => $("#" + id).classList.remove("open");
+  $("#open-learn").onclick = () => open("learn-drawer");
+  $("#open-settings").onclick = () => open("settings-drawer");
+  document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => close(b.dataset.close)));
+
+  $("#f-temp").oninput = (e) => { $("#temp-val").textContent = Number(e.target.value).toFixed(2); };
+
+  $("#save-settings").onclick = async () => {
+    const body = {
+      provider: $("#f-provider").value,
+      model: $("#f-model").value,
+      base_url: $("#f-base").value,
+      temperature: Number($("#f-temp").value),
+    };
+    const key = $("#f-key").value.trim();
+    if (key) body.api_key = key;
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      $("#f-key").value = "";
+      await refreshStatus();
+      toast(state.live ? "Kale! Kati tuli live." : "Kyawereddwa — naye tewali key, tuli mu demo.");
+      close("settings-drawer");
+    } catch (e) { toast("Tekisobodde"); }
+  };
+
+  $("#export-btn").onclick = async () => {
+    try {
+      const r = await fetch("/api/export", { method: "POST" });
+      const d = await r.json();
+      toast(`${d.sft_records} SFT · ${d.preference_pairs} DPO pairs → finetune/data/exported/`);
+    } catch (e) { toast("Export failed"); }
+  };
+
+  refreshStatus();
+})();
+</script>
+</body>
+</html>
