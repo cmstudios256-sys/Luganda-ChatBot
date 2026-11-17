@@ -17,6 +17,9 @@ finetune/data/exported/
 
 corpus/out/
 voice/out/
+bayibuli/
+textbooks/
+newspapers/
 
 # dataset/segment backups created by clean_dataset + review apply
 *.bak

@@ -158,7 +158,7 @@ def select_tracked(items: list[dict], limit: int, *, max_biblical: float = 0.25)
     biblical = [p for p in picked if p.get("register") == "biblical"]
     if len(biblical) > cap:
         rest = [p for p in picked if p.get("register") != "biblical"]
-        picked = (rest + biblical)[:limit]
+        picked = rest[: max(0, limit - cap)] + biblical[:cap]
 
     picked = picked[:limit]
     order = {id(it): i for i, it in enumerate(items)}
