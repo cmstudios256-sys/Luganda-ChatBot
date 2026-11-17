@@ -139,6 +139,18 @@ function wire(){
     });
   });
 }
+function markRestOk(){
+  var cards = document.querySelectorAll('.card');
+  var marked = 0;
+  cards.forEach(function(c){
+    var picked = c.querySelector('input[type=radio]:checked');
+    if(!picked){
+      var ok = c.querySelector('input[value="ok"]');
+      if(ok){ ok.checked = true; marked++; }
+    } else { marked++; }
+  });
+  document.getElementById('count').textContent = marked + ' of ' + cards.length + ' marked';
+}
 function collect(){
   var lines = [];
   document.querySelectorAll('.card').forEach(function(c){
@@ -231,6 +243,7 @@ def build_sheet(records: list[dict], codes: dict[str, str], *, limit: int | None
     out += [
         "</div>",
         "<div class=\"bar\"><button onclick=\"collect()\">Build verdicts</button>",
+        "<button class=\"ghost\" onclick=\"markRestOk()\">Mark unmarked ok</button>",
         "<button class=\"ghost\" onclick=\"window.print()\">Print</button>",
         "<textarea id=\"out\" spellcheck=\"false\"></textarea>",
         "<span class=\"count\" id=\"count\">nothing marked yet</span></div>",
