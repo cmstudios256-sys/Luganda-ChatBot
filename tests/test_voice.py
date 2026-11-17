@@ -177,6 +177,83 @@ def test_script_skips_fragments_too_short_to_pronounce(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# Recording script from verified corpus (per-source balance + provenance)
+# --------------------------------------------------------------------------- #
+def _seg(text, kind, verified=True, register="plain", locator=""):
+    return {"text": text, "verified": verified, "kind": kind, "source": f"test:{kind}",
+            "locator": locator, "register": register}
+
+
+def _tracked(items):
+    """Build corpus_lines_tracked-style items directly, without a segment store."""
+    return [dict(t, words=len(t["text"].split())) for t in items]
+
+
+def test_tracked_lines_carry_provenance_and_respect_verified_flag(monkeypatch):
+    fake = [
+        _seg("Abantu bangi bajja ku ttuno lw'essanyu ly'eddembe lyaffe.", "news",
+             verified=True, locator="bukedde/2024-06-01"),
+        _seg("Kino tekinnakakasibwa nnyo mu Luganda guno.", "news", verified=False),
+    ]
+    monkeypatch.setattr(record_script, "load_segments", lambda: (fake, {}))
+    items = record_script.corpus_lines_tracked(verified_only=True)
+    assert len(items) == 1
+    assert items[0]["kind"] == "news"
+    assert items[0]["locator"] == "bukedde/2024-06-01"
+    assert items[0]["source"] == "test:news"
+
+
+def test_tracked_lines_filter_by_kind(monkeypatch):
+    fake = [
+        _seg("Ekitabo kino kigamba ku by'obulamu bw'abantu bonna.", "books", verified=True),
+        _seg("Omulimu gwa Katonda gusoomoza byonna.", "bible", verified=True, register="biblical"),
+    ]
+    monkeypatch.setattr(record_script, "load_segments", lambda: (fake, {}))
+    assert {i["kind"] for i in record_script.corpus_lines_tracked(
+        verified_only=True, kinds={"books"})} == {"books"}
+
+
+def test_select_tracked_balances_kinds_proportionally():
+    """A hundred Bible lines must not crowd a handful of textbook lines out of the script."""
+    bible = [{"text": f"Omulimu gwa Katonda gusoomoza byonna {i} bulungi.", "words": 8,
+              "kind": "bible", "register": "biblical", "source": "t", "locator": ""}
+             for i in range(100)]
+    books = [{"text": f"Omulenzi asoma ekitabo kye buli lunaku {i} lwonna.", "words": 9,
+              "kind": "books", "register": "plain", "source": "t", "locator": ""}
+             for i in range(10)]
+    picked = record_script.select_tracked(bible + books, 30, max_biblical=1.0)
+    kinds = [p["kind"] for p in picked]
+    assert kinds.count("books") >= 1, "small sources keep at least one line"
+    assert kinds.count("bible") > kinds.count("books"), "the big source still dominates, but not fully"
+
+
+def test_select_tracked_caps_biblical_register():
+    bible = [{"text": f"Omulimu gwa Katonda gusoomoza byonna {i} bulungi.", "words": 8,
+              "kind": "bible", "register": "biblical", "source": "t", "locator": ""}
+             for i in range(60)]
+    books = [{"text": f"Omulenzi asoma ekitabo kye buli lunaku {i} lwonna.", "words": 9,
+              "kind": "books", "register": "plain", "source": "t", "locator": ""}
+             for i in range(30)]
+    picked = record_script.select_tracked(bible + books, 40, max_biblical=0.25)
+    assert sum(p["register"] == "biblical" for p in picked) <= int(40 * 0.25)
+
+
+def test_build_accepts_tracked_items_and_writes_provenance_into_the_manifest():
+    items = [
+        {"text": "Abantu bangi bajja leero ku ttuno.", "words": 6, "kind": "news",
+         "source": "test:news", "locator": "bukedde/2024-06-01", "register": "plain"},
+        "Oli otya mukwano?",
+    ]
+    page, manifest = record_script.build(items, minutes=None)
+    assert manifest[0]["kind"] == "news" and manifest[0]["locator"] == "bukedde/2024-06-01"
+    assert manifest[1]["text"] == "Oli otya mukwano?"
+    assert "bukedde/2024-06-01" in page, "the reader can see where the line came from"
+    # plain-string callers (old behaviour, tests above) still work unchanged
+    _, plain = record_script.build(["Oli otya?"], minutes=None)
+    assert plain[0]["text"] == "Oli otya?" and plain[0]["kind"] == "plain"
+
+
+# --------------------------------------------------------------------------- #
 # Checking a recording session
 # --------------------------------------------------------------------------- #
 def _session(tmp_path, *, seconds=2.0, amplitude=20000, lines=3):
