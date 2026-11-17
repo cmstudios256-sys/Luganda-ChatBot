@@ -50,12 +50,13 @@ def load_segments(paths: list[Path] | None = None) -> tuple[list[dict], dict[str
     records: list[dict] = []
     home: dict[str, Path] = {}
     for path in files:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            rec = json.loads(line)
-            records.append(rec)
-            home[rec["id"]] = path
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                records.append(rec)
+                home[rec["id"]] = path
     return records, home
 
 
