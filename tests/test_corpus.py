@@ -332,3 +332,27 @@ def test_no_caps_means_no_changes():
     recs = _reg_records()
     kept, report = cap_registers(recs, {})
     assert kept == recs and report == {}
+
+
+def test_parse_usfm_bible_sample(tmp_path):
+    from corpus.ingest_bible import group_verses, parse_verses
+
+    sample = tmp_path / "1JN.usfm"
+    sample.write_text(
+        "\\id 1JN - Biblica Open Luganda Contemporary Bible 2014\n"
+        "\\h 1 Yokaana\n"
+        "\\c 1\n"
+        "\\s1 Kigambo Aleeta Obulamu\n"
+        "\\p \\v 1 Tubawandiikira ku Kigambo ow'obulamu. \\v 2 Obulamu bwalabisibwa.\n"
+        "\\c 2\n"
+        "\\q1 \\v 12 Baana bange abaagalwa,\n"
+        "\\q2 mbawandiikidde kubanga musonyiyiddwa ebibi byammwe.\n",
+        encoding="utf-8",
+    )
+    verses, found, skipped = parse_verses(sample)
+    assert found == 3 and skipped == 0
+    assert verses[0]["book"] == "1 Yokaana"
+    assert (verses[2]["chapter"], verses[2]["verse"]) == (2, 12)
+    assert "mbawandiikidde" in verses[2]["text"]
+    segs = group_verses(verses)
+    assert all(s.kind == "bible" and s.meta.get("register") == "biblical" for s in segs)

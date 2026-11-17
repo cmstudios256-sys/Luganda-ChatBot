@@ -51,6 +51,11 @@ VERSE_RE = re.compile(
 )
 # running heads / page numbers that survive copy-paste
 NOISE_RE = re.compile(r"^\s*(?:page\s+\d+|\d{1,3}|baibuli|bayibuli)\s*$", re.IGNORECASE)
+_USFM_SKIP = re.compile(
+    r"^\\(?:id|rem|ide|h|toc\d*|mt\d*|ms\d*|mr|s\d*|r|d|b|cl|cp|i[a-z]*\d*)\b"
+)
+_USFM_NOTE = re.compile(r"\\(?:f|fe|x)\s+.*?\\(?:f|fe|x)\*")
+_USFM_TAG = re.compile(r"\\(?!v\b)\+?[a-zA-Z]+\d*\*?")
 
 
 def book_name(path: Path) -> str:
@@ -58,8 +63,47 @@ def book_name(path: Path) -> str:
     return re.sub(r"^\d{1,2}[\s.]+", "", stem) or path.stem   # "01 Olwokusooka" -> "Olwokusooka"
 
 
+def _parse_usfm(path: Path) -> tuple[list[dict], int, int]:
+    """Parse a USFM book file (\\c chapter, \\v verse) into [{book, chapter, verse, text}]."""
+    verses: list[dict] = []
+    skipped = 0
+    book = book_name(path)
+    chapter = 0
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = _USFM_NOTE.sub("", raw).strip()
+        if not line:
+            continue
+        if line.startswith(("\\h ", "\\toc2 ")):
+            book = line.split(None, 1)[1].strip() or book
+            continue
+        if line.startswith("\\c "):
+            m_ch = re.match(r"^\\c\s+(\d+)", line)
+            if m_ch:
+                chapter = int(m_ch.group(1))
+            continue
+        if _USFM_SKIP.match(line):
+            continue
+        if chapter == 0:
+            skipped += 1
+            continue
+        cleaned = _USFM_TAG.sub("", line).strip()
+        parts = re.split(r"\\v\s+(\d+)(?:-\d+)?\s+", cleaned)
+        if parts[0].strip() and verses:
+            verses[-1]["text"] += " " + " ".join(parts[0].split())
+        elif parts[0].strip() and not verses:
+            skipped += 1
+        for i in range(1, len(parts), 2):
+            v_num = int(parts[i])
+            v_text = " ".join(parts[i + 1].split())
+            if v_text:
+                verses.append({"book": book, "chapter": chapter, "verse": v_num, "text": v_text})
+    return verses, len(verses), skipped
+
+
 def parse_verses(path: Path) -> tuple[list[dict], int, int]:
     """Return [{book, chapter, verse, text}], (verses found, lines skipped)."""
+    if path.suffix.lower() == ".usfm":
+        return _parse_usfm(path)
     verses: list[dict] = []
     skipped = 0
     book = book_name(path)
@@ -131,7 +175,7 @@ def group_verses(verses: list[dict], *, words_target: int = 120) -> list[Segment
 def collect(folder: Path) -> list[Path]:
     if folder.is_file():
         return [folder]
-    return sorted(p for p in folder.rglob("*") if p.suffix.lower() in {".txt", ".md", ".csv"})
+    return sorted(p for p in folder.rglob("*") if p.suffix.lower() in {".txt", ".md", ".csv", ".usfm"})
 
 
 def write_parallel(lug_files: list[Path], eng_folder: Path, out_path: Path) -> dict:
