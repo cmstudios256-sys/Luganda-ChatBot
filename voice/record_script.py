@@ -35,12 +35,12 @@ from __future__ import annotations
 import argparse
 import html
 import json
-import math
 import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
+from corpus.langid import ENG_MARKERS, LUG_MARKERS, PREFIX_RE, WORD_RE, classify
 from corpus.make_review_sheet import load_segments
 
 OUT_DIR = Path(__file__).resolve().parent / "out"
@@ -81,13 +81,76 @@ def sentences_from_corpus(verified_only: bool) -> list[str]:
     return picked
 
 
+_STRICT_ENG = (ENG_MARKERS - {"we", "be"}) | {
+    "he", "she", "him", "her", "his", "my", "your", "our", "who", "what", "when", "where",
+    "why", "how", "if", "do", "does", "did", "go", "goes", "went", "make", "take", "say",
+    "says", "ask", "read", "write", "repeat", "student", "students", "teacher", "question",
+    "thematic", "sample", "text", "vocabulary", "word", "words", "lesson", "drill", "week",
+    "term", "day", "english", "basic", "course", "dialog", "speaker", "phrases", "aloud",
+    "meaning", "optional", "context", "exercise", "book", "reading", "learning", "journalist",
+    "joornalist", "vision", "wision", "new", "won", "don", "isn", "aren", "wasn", "didn",
+    "championships", "national", "cross", "country", "golf", "social", "media",
+}
+_SPEAKABLE_CHARS_RE = re.compile(r"^[A-Za-zŋŊ\s'’\"“”,.;:?!\-–—]+$")
+_START_CAP_RE = re.compile(r'^["“]?[A-ZŊ]')
+_END_PUNCT_RE = re.compile(r'[.?!]["”]?$')
+_SYLLABLE_DRILL_RE = re.compile(r"\b[a-z]{1,3}-[a-z]{2,}")
+_GLUED_SENT_RE = re.compile(r"[a-z]\.[A-Z]")
+_SPEAKER_LABEL_RE = re.compile(r"^[A-Za-z]{1,2}:\s")
+_CAMEL_JOIN_RE = re.compile(r"[a-z][A-Z]")
+_ORPHAN_PREFIX_RE = re.compile(r"^[A-Z]\s")
+_ABBREV_END_RE = re.compile(
+    r"\b(?:dr|mr|mrs|ms|prof|rev|st|hon|gen|col|capt|sgt|lt|no|vs|etc)\.$",
+    re.IGNORECASE,
+)
+
+
+def is_speakable_luganda(text: str) -> bool:
+    """Return True if *text* is a clean, self-contained 4-30 word Luganda sentence."""
+    text = text.strip()
+    if not (4 <= len(text.split()) <= 30):
+        return False
+    if not _SPEAKABLE_CHARS_RE.match(text):
+        return False
+    if not _START_CAP_RE.match(text) or not _END_PUNCT_RE.search(text):
+        return False
+    if text.count('"') % 2 != 0 or text.count("“") != text.count("”"):
+        return False
+    if ".." in text or "--" in text or "''" in text or '""' in text:
+        return False
+    if (
+        _SYLLABLE_DRILL_RE.search(text)
+        or _GLUED_SENT_RE.search(text)
+        or _SPEAKER_LABEL_RE.match(text)
+        or _CAMEL_JOIN_RE.search(text)
+        or _ORPHAN_PREFIX_RE.match(text)
+        or _ABBREV_END_RE.search(text)
+    ):
+        return False
+    letters = [c for c in text if c.isalpha()]
+    if not letters or sum(c.isupper() for c in letters) / len(letters) > 0.35:
+        return False
+    toks = [t.lower().strip("'") for t in WORD_RE.findall(text)]
+    if any(t in _STRICT_ENG for t in toks):
+        return False
+    if len(toks) >= 8:
+        res = classify(text, min_tokens=8)
+        if res.decision != "lug":
+            return False
+    else:
+        if not any(t in LUG_MARKERS or PREFIX_RE.search(t) for t in toks):
+            return False
+    return True
+
+
 def corpus_lines_tracked(*, verified_only: bool = True,
                           kinds: set[str] | None = None) -> list[dict]:
     """Sentence-level corpus lines, each carrying where it came from.
 
-    Same splitting rule as ``sentences_from_corpus`` (4-30 words) — no new Luganda
-    judgement happens here, only bookkeeping, so any line the reader stumbles on can be
-    traced back to its verse range, textbook segment or article.
+    Same splitting rule as ``sentences_from_corpus`` (4-30 words), filtered with
+    ``is_speakable_luganda`` to keep English/OCR noise out, with provenance so any
+    line the reader stumbles on can be traced back to its verse range, textbook
+    segment or article.
     """
     records, _ = load_segments()
     picked: list[dict] = []
@@ -101,12 +164,11 @@ def corpus_lines_tracked(*, verified_only: bool = True,
         register = rec.get("register") or "plain"
         for chunk in re.split(r"(?<=[.!?])\s+|\n+", rec.get("text", "")):
             chunk = chunk.strip()
-            words = len(chunk.split())
-            if not (4 <= words <= 30) or chunk in seen:
+            if chunk in seen or not is_speakable_luganda(chunk):
                 continue
             seen.add(chunk)
             picked.append({
-                "text": chunk, "words": words,
+                "text": chunk, "words": len(chunk.split()),
                 "source": rec.get("source", "unknown"), "kind": kind,
                 "locator": rec.get("locator", ""), "register": register,
             })
@@ -125,6 +187,65 @@ def select(lines: list[str], limit: int) -> list[str]:
     return sorted(set(picked), key=lambda s: order.get(s, 10**9))
 
 
+def _sample_spread(lines: list[dict], quota: int) -> list[dict]:
+    """Pick *quota* items evenly spread across sentence length."""
+    ordered = sorted(lines, key=lambda i: (i["words"], i["text"]))
+    if quota <= 0:
+        return []
+    if len(ordered) <= quota:
+        return ordered
+    step = len(ordered) / quota
+    return [ordered[int(i * step)] for i in range(quota)]
+
+
+def _pick_by_kind(items: list[dict], budget: int) -> list[dict]:
+    """Allocate *budget* proportionally across kinds while preserving assistant frames."""
+    if not items or budget <= 0:
+        return []
+    by_kind: dict[str, list[dict]] = defaultdict(list)
+    for it in items:
+        by_kind[it.get("kind") or "plain"].append(it)
+
+    quotas: dict[str, int] = {}
+    rest_kinds = {k: v for k, v in by_kind.items() if k != "frames"}
+    rem = budget
+    if "frames" in by_kind:
+        if rest_kinds:
+            frame_quota = min(len(by_kind["frames"]), max(1, budget // 4))
+        else:
+            frame_quota = min(len(by_kind["frames"]), budget)
+        quotas["frames"] = frame_quota
+        rem = budget - frame_quota
+
+    if rest_kinds and rem > 0:
+        total_rest = sum(len(v) for v in rest_kinds.values())
+        for k, v in rest_kinds.items():
+            quotas[k] = min(len(v), max(1, round(rem * len(v) / total_rest)))
+
+        overflow = sum(quotas.get(k, 0) for k in rest_kinds) - rem
+        if overflow > 0:
+            for k in sorted(rest_kinds, key=lambda k: -len(rest_kinds[k])):
+                if overflow <= 0:
+                    break
+                cut = min(overflow, max(0, quotas[k] - 1))
+                quotas[k] -= cut
+                overflow -= cut
+
+        shortfall = rem - sum(quotas.get(k, 0) for k in rest_kinds)
+        if shortfall > 0:
+            for k in sorted(rest_kinds, key=lambda k: -(len(rest_kinds[k]) - quotas[k])):
+                if shortfall <= 0:
+                    break
+                add = min(shortfall, len(rest_kinds[k]) - quotas[k])
+                quotas[k] += add
+                shortfall -= add
+
+    picked: list[dict] = []
+    for kind, lines in by_kind.items():
+        picked.extend(_sample_spread(lines, quotas.get(kind, 0)))
+    return picked
+
+
 def select_tracked(items: list[dict], limit: int, *, max_biblical: float = 0.25) -> list[dict]:
     """Balanced pick across source kinds, with a hard cap on biblical-register lines.
 
@@ -134,35 +255,26 @@ def select_tracked(items: list[dict], limit: int, *, max_biblical: float = 0.25)
     """
     if not items or limit <= 0:
         return []
-    by_kind: dict[str, list[dict]] = defaultdict(list)
-    for it in items:
-        by_kind[it.get("kind") or "plain"].append(it)
+    biblical_items = [it for it in items if it.get("register") == "biblical"]
+    other_items = [it for it in items if it.get("register") != "biblical"]
 
-    quotas = {k: max(1, round(limit * len(v) / len(items))) for k, v in by_kind.items()}
-    overflow = sum(quotas.values()) - limit
-    if overflow > 0:                       # shrink the biggest pools first, keep one line each
-        for k in sorted(quotas, key=lambda k: -len(by_kind[k])):
-            if overflow <= 0:
-                break
-            cut = min(overflow, quotas[k] - 1)
-            quotas[k] -= cut
-            overflow -= cut
+    bib_prop = round(limit * len(biblical_items) / len(items)) if biblical_items else 0
+    bib_cap = int(limit * max_biblical)
 
-    picked: list[dict] = []
-    for kind, lines in by_kind.items():
-        ordered = sorted(lines, key=lambda i: (i["words"], i["text"]))
-        step = max(1, math.ceil(len(ordered) / quotas[kind]))
-        picked.extend(ordered[::step][:quotas[kind]])
+    if not other_items:
+        bib_budget = min(len(biblical_items), limit if max_biblical >= 1.0 else bib_cap)
+        other_budget = 0
+    else:
+        bib_budget = min(len(biblical_items), bib_prop, bib_cap)
+        other_budget = min(len(other_items), limit - bib_budget)
+        if max_biblical < 1.0:
+            ratio_cap = int(other_budget * max_biblical / (1.0 - max_biblical))
+            bib_budget = min(bib_budget, ratio_cap)
+            other_budget = min(len(other_items), limit - bib_budget)
 
-    cap = int(limit * max_biblical)
-    biblical = [p for p in picked if p.get("register") == "biblical"]
-    if len(biblical) > cap:
-        rest = [p for p in picked if p.get("register") != "biblical"]
-        picked = rest[: max(0, limit - cap)] + biblical[:cap]
-
-    picked = picked[:limit]
+    picked = _pick_by_kind(other_items, other_budget) + _pick_by_kind(biblical_items, bib_budget)
     order = {id(it): i for i, it in enumerate(items)}
-    return sorted(picked, key=lambda it: order.get(id(it), 10**9))
+    return sorted(picked[:limit], key=lambda it: order.get(id(it), 10**9))
 
 
 def _provenance(m: dict) -> str:

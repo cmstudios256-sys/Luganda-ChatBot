@@ -253,6 +253,71 @@ def test_build_accepts_tracked_items_and_writes_provenance_into_the_manifest():
     assert plain[0]["text"] == "Oli otya?" and plain[0]["kind"] == "plain"
 
 
+def test_tracked_lines_drop_english_ocr_digits_and_fragments(monkeypatch):
+    fake = [
+        _seg("Akade kavuga, abayizi bakuŋŋaana.", "book"),
+        _seg("Abantu baayo be batabani ba Anaki, ba maanyi era bawanvu.", "bible", register="biblical"),
+        _seg("Have a student go to the map and point aloud.", "unknown"),
+        _seg("Mu kibiina'# kino / mulim£ + (ess~) / mmekgf.", "unknown"),
+        _seg("Term 1 Week 1 Day 1.", "book"),
+        _seg("Bi-pande bipande ki-zimbe bizimbe.", "book"),
+        _seg('"Laba kiwandiikiddwa mu maaso gange.', "bible", register="biblical"),
+        _seg("Ekirala tulabye ku mikutu nga bagamba nti Dr.", "news"),
+        _seg("A Enkya onoolya ki?", "unknown"),
+        _seg("Simanyi ngeri ki gye nnyinzaOmu kubasirisa.", "unknown"),
+    ]
+    monkeypatch.setattr(record_script, "load_segments", lambda: (fake, {}))
+    texts = [i["text"] for i in record_script.corpus_lines_tracked(verified_only=True)]
+    assert texts == [
+        "Akade kavuga, abayizi bakuŋŋaana.",
+        "Abantu baayo be batabani ba Anaki, ba maanyi era bawanvu.",
+    ]
+
+
+def test_select_tracked_refills_non_biblical_to_hit_limit():
+    bible = [{"text": f"Omulimu gwa Katonda gusoomoza byonna {i} bulungi.", "words": 8,
+              "kind": "bible", "register": "biblical", "source": "t", "locator": ""}
+             for i in range(200)]
+    news = [{"text": f"Abantu bangi bajja ku ttuno leero {i} bulungi.", "words": 8,
+             "kind": "news", "register": "plain", "source": "t", "locator": ""}
+            for i in range(100)]
+    books = [{"text": f"Omulenzi asoma ekitabo kye buli lunaku {i} lwonna.", "words": 9,
+              "kind": "books", "register": "plain", "source": "t", "locator": ""}
+             for i in range(50)]
+    picked = record_script.select_tracked(bible + news + books, 100, max_biblical=0.25)
+    assert len(picked) == 100
+    assert sum(p["register"] == "biblical" for p in picked) == 25
+    assert sum(p["register"] != "biblical" for p in picked) == 75
+
+
+def test_select_tracked_respects_ratio_when_non_biblical_pool_is_small():
+    bible = [{"text": f"Omulimu gwa Katonda gusoomoza byonna {i} bulungi.", "words": 8,
+              "kind": "bible", "register": "biblical", "source": "t", "locator": ""}
+             for i in range(100)]
+    books = [{"text": f"Omulenzi asoma ekitabo kye buli lunaku {i} lwonna.", "words": 9,
+              "kind": "books", "register": "plain", "source": "t", "locator": ""}
+             for i in range(15)]
+    picked = record_script.select_tracked(bible + books, 40, max_biblical=0.25)
+    assert len(picked) == 20
+    assert sum(p["register"] == "biblical" for p in picked) == 5
+
+
+def test_select_tracked_preserves_assistant_frames():
+    frames = [{"text": t, "words": len(t.split()), "kind": "frames",
+               "register": "assistant", "source": "frames", "locator": ""}
+              for t in record_script.FRAMES]
+    bible = [{"text": f"Omulimu gwa Katonda gusoomoza byonna {i} bulungi.", "words": 8,
+              "kind": "bible", "register": "biblical", "source": "t", "locator": ""}
+             for i in range(500)]
+    news = [{"text": f"Abantu bangi bajja ku ttuno leero {i} bulungi.", "words": 8,
+             "kind": "news", "register": "plain", "source": "t", "locator": ""}
+            for i in range(300)]
+    picked = record_script.select_tracked(frames + bible + news, 100, max_biblical=0.25)
+    assert len(picked) == 100
+    assert sum(p["kind"] == "frames" for p in picked) == len(record_script.FRAMES)
+    assert sum(p["register"] == "biblical" for p in picked) == 25
+
+
 # --------------------------------------------------------------------------- #
 # Checking a recording session
 # --------------------------------------------------------------------------- #
